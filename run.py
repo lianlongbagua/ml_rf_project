@@ -2,7 +2,7 @@ from src.targets_extraction import *
 from src.features_extraction import *
 from src.useful_tools import *
 
-from sklearn.externals import joblib
+import joblib
 
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import FunctionTransformer
@@ -57,7 +57,8 @@ if __name__ == "__main__":
                  range(p, q, step): , default is range(10, 100, 10): ")
     if lags == "":
         lags = [i for i in range(10, 100, 10)]
-    lags = list(eval(lags))
+    else:
+        lags = list(eval(lags))
 
     preprocessing_pipeline = make_pipeline(
         FunctionTransformer(prepare_desired_pos, kw_args={"lag":50, "multiplier":10}),
@@ -67,41 +68,33 @@ if __name__ == "__main__":
         verbose=True
     )
 
-    feature_selection_pipeline = make_pipeline(
-        SelectFromModel(ExtraTreesClassifier(n_estimators=100, random_state=42)),
-        verbose=True
-    )
+    feature_selector = SelectFromModel(ExtraTreesClassifier(n_estimators=1000, random_state=42, n_jobs=-1))
 
-    training_pipeline_classifier = make_pipeline(
-        RandomForestClassifier(n_estimators=100, random_state=42)
-    )
-
-    training_pipeline_regressor = make_pipeline(
-        RandomForestRegressor(n_estimators=100, random_state=42)
-    )
+    training_classifier = RandomForestClassifier()
+    training_regressor = RandomForestRegressor()
 
     print("Beginning preprocessing...")
     X, y = preprocessing_pipeline.fit_transform(df)
     print("Preprocessing complete")
 
     print("Beginning feature selection...")
-    X = feature_selection_pipeline.fit_transform(X, y['pos_change_signal'])
+    X = feature_selector.fit_transform(X, y['pos_change_signal'])
     print("Feature selection complete: dropped features: ", X.shape[1] - 1)
 
     print("leaving one set out for testing...")
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.35, shuffle=False)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.15, shuffle=False)
     print("Test set left out")
 
     ts_cv = TimeSeriesSplit(n_splits=5)
     print("Beginning training...")
     print("Training classifier for whether to enter into position...")
     grid_search_classifier = GridSearchCV(
-        training_pipeline_classifier,
+        training_classifier,
         param_grid={
-            "randomforestclassifier__max_depth": [None, 5, 10, 20],
-            "randomforestclassifier__min_samples_split": [i for i in range(100, 5000, 5000)],
-            "randomforestclassifier__min_samples_leaf": [i for i in range(100, 5000, 5000)],
-            "randomforestclassifier__max_features": ["sqrt", "log2", "None"],
+            "max_depth": [None, 5, 10, 20],
+            "min_samples_split": [i for i in range(100, 5000, 500)],
+            "min_samples_leaf": [i for i in range(100, 5000, 500)],
+            "max_features": ["sqrt", "log2", "None"],
         },
         cv=ts_cv,
         scoring="accuracy",
@@ -131,12 +124,12 @@ if __name__ == "__main__":
 
     print("Training regressor for how much to change position by...")
     grid_search_regressor = GridSearchCV(
-        training_pipeline_regressor,
+        training_regressor,
         param_grid={
-            "randomforestregressor__max_depth": [None, 5, 10, 20],
-            "randomforestregressor__min_samples_split": [i for i in range(100, 5000, 5000)],
-            "randomforestregressor__min_samples_leaf": [i for i in range(100, 5000, 5000)],
-            "randomforestregressor__max_features": ["sqrt", "log2", "None"],
+            "max_depth": [None, 5, 10, 20],
+            "min_samples_split": [i for i in range(100, 5000, 500)],
+            "min_samples_leaf": [i for i in range(100, 5000, 500)],
+            "max_features": ["sqrt", "log2", "None"],
         },
         cv=ts_cv,
         scoring="R2",
@@ -147,7 +140,6 @@ if __name__ == "__main__":
     print("Best score: ", grid_search_regressor.best_score_)
     print("Best params: ", grid_search_regressor.best_params_)
     print("Best estimator: ", grid_search_regressor.best_estimator_)
-    print("Best index: ", grid_search_regressor.best_index_)
     print("Saving model...")
     joblib.dump(grid_search_regressor.best_estimator_, 'models/change_pos_regressor.pkl')
 
@@ -156,7 +148,6 @@ if __name__ == "__main__":
     print("Best score: ", grid_search_regressor.best_score_)
     print("Best params: ", grid_search_regressor.best_params_)
     print("Best estimator: ", grid_search_regressor.best_estimator_)
-    print("Best index: ", grid_search_regressor.best_index_)
     print("Saving model...")
     joblib.dump(grid_search_regressor.best_estimator_, 'models/hold_pos_regressor.pkl')
 
