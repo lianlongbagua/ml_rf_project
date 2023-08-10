@@ -5,53 +5,51 @@ import warnings
 
 def generate_og_features_df(df: pd.DataFrame, lags: list):
     for lag in lags:
-        df["ADOSC" + str(lag)] = talib.ADOSC(
+        df["ADOSC_" + str(lag)] = talib.ADOSC(
             df["high"], df["low"], df["close"], df["volume"], lag, lag * 3
         )
-        df["MFI" + str(lag)] = talib.MFI(
+        df["MFI_" + str(lag)] = talib.MFI(
             df["high"], df["low"], df["close"], df["volume"], lag
         )
 
 
 def generate_mom_features_df(df: pd.DataFrame, lags: list):
     for lag in lags:
-        df["ROC" + str(lag)] = talib.ROC(df["close"], lag)
-        df["MOM" + str(lag)] = talib.MOM(df["close"], lag)
-        df["PLUSDM" + str(lag)] = talib.PLUS_DM(df["high"], df["low"], lag)
-        df["MINUSDM" + str(lag)] = talib.MINUS_DM(df["high"], df["low"], lag)
-        df["ADX" + str(lag)] = talib.ADX(df["high"], df["low"], df["close"], lag)
-        df["ADXR" + str(lag)] = talib.ADXR(df["high"], df["low"], df["close"], lag)
-        df["APO" + str(lag)] = talib.APO(df["close"], lag, lag * 2)
-        df["AROONOSC" + str(lag)] = talib.AROONOSC(df["high"], df["low"], lag)
+        df["ROC_" + str(lag)] = talib.ROC(df["close"], lag)
+        df["MOM_" + str(lag)] = talib.MOM(df["close"], lag)
+        df["PLUS_DM_" + str(lag)] = talib.PLUS_DM(df["high"], df["low"], lag)
+        df["MINUS_DM_" + str(lag)] = talib.MINUS_DM(df["high"], df["low"], lag)
+        df["ADX_" + str(lag)] = talib.ADX(df["high"], df["low"], df["close"], lag)
+        df["ADXR_" + str(lag)] = talib.ADXR(df["high"], df["low"], df["close"], lag)
+        df["APO_" + str(lag)] = talib.APO(df["close"], lag, lag * 2)
+        df["AROONOSC_" + str(lag)] = talib.AROONOSC(df["high"], df["low"], lag)
 
-        df["CCI" + str(lag)] = talib.CCI(df["high"], df["low"], df["close"], lag)
-        df["CMO" + str(lag)] = talib.CMO(df["close"], lag)
-        df["DX" + str(lag)] = talib.DX(df["high"], df["low"], df["close"], lag)
+        df["CCI_" + str(lag)] = talib.CCI(df["high"], df["low"], df["close"], lag)
+        df["CMO_" + str(lag)] = talib.CMO(df["close"], lag)
+        df["DX_" + str(lag)] = talib.DX(df["high"], df["low"], df["close"], lag)
         (
-            df["MACD" + str(lag)],
-            df["MACDSIGNAL" + str(lag)],
-            df["MACDHIST" + str(lag)],
+            df["MACD_" + str(lag)],
+            df["MACDSIGNAL_" + str(lag)],
+            df["MACDHIST_" + str(lag)],
         ) = talib.MACD(df["close"], lag, lag * 2, lag * 3)
         (
-            df["MACDFIX" + str(lag)],
-            df["MACDSIGNALFIX" + str(lag)],
-            df["MACDHISTFIX" + str(lag)],
+            df["MACDFIX_" + str(lag)],
+            df["MACDSIGNALFIX_" + str(lag)],
+            df["MACDHISTFIX_" + str(lag)],
         ) = talib.MACDFIX(df["close"], lag)
-        df["PPO" + str(lag)] = talib.PPO(df["close"], lag, lag * 2)
-        df["RSI" + str(lag)] = talib.RSI(df["close"], lag)
-        df["ULTOSC" + str(lag)] = talib.ULTOSC(
+        df["PPO_" + str(lag)] = talib.PPO(df["close"], lag, lag * 2)
+        df["RSI_" + str(lag)] = talib.RSI(df["close"], lag)
+        df["ULTOSC_" + str(lag)] = talib.ULTOSC(
             df["high"], df["low"], df["close"], lag, lag * 2, lag * 3
         )
-        df["WILLR" + str(lag)] = talib.WILLR(df["high"], df["low"], df["close"], lag)
+        df["WILLR_" + str(lag)] = talib.WILLR(df["high"], df["low"], df["close"], lag)
         (
-            df["STOCHRSI" + str(lag) + "k"],
-            df["STOCHRSI" + str(lag) + "d"],
+            df["STOCHRSI_" + str(lag) + "k"],
+            df["STOCHRSI_" + str(lag) + "d"],
         ) = talib.STOCHRSI(df["close"], lag, 3, 3)
-        df["NATR" + str(lag)] = talib.NATR(df["high"], df["low"], df["close"], lag)
-        df["ATR" + str(lag)] = talib.ATR(df["high"], df["low"], df["close"], lag)
-        df["KELTNER" + str(lag)] = (df["close"] - talib.SMA(df["close"], lag)) / df[
-            "ATR" + str(lag)
-        ]
+        df["NATR_" + str(lag)] = talib.NATR(df["high"], df["low"], df["close"], lag)
+        df["ATR_" + str(lag)] = talib.ATR(df["high"], df["low"], df["close"], lag)
+        df["TRANGE_" + str(lag)] = talib.TRANGE(df["high"], df["low"], df["close"])
 
     df["HT_TRENDLINE"] = talib.HT_TRENDLINE(df["close"])
     df["HT_TRENDMODE"] = talib.HT_TRENDMODE(df["close"])
@@ -64,17 +62,17 @@ def generate_mom_features_df(df: pd.DataFrame, lags: list):
 
 def generate_math_features_df(df: pd.DataFrame, lags: list):
     for lag in lags:
-        df["BETA" + str(lag)] = talib.BETA(df["high"], df["low"], lag)
-        df["CORREL" + str(lag)] = talib.CORREL(df["high"], df["low"], lag)
-        df["LINEARREG" + str(lag)] = talib.LINEARREG(df["close"], lag)
-        df["LINEARREG_ANGLE" + str(lag)] = talib.LINEARREG_ANGLE(df["close"], lag)
-        df["LINEARREG_INTERCEPT" + str(lag)] = talib.LINEARREG_INTERCEPT(
+        df["BETA_" + str(lag)] = talib.BETA(df["high"], df["low"], lag)
+        df["CORREL_" + str(lag)] = talib.CORREL(df["high"], df["low"], lag)
+        df["LINEARREG_" + str(lag)] = talib.LINEARREG(df["close"], lag)
+        df["LINEARREG_ANGLE_" + str(lag)] = talib.LINEARREG_ANGLE(df["close"], lag)
+        df["LINEARREG_INTERCEPT_" + str(lag)] = talib.LINEARREG_INTERCEPT(
             df["close"], lag
         )
-        df["LINEARREG_SLOPE" + str(lag)] = talib.LINEARREG_SLOPE(df["close"], lag)
-        df["STDDEV" + str(lag)] = talib.STDDEV(df["close"], lag)
-        df["TSF" + str(lag)] = talib.TSF(df["close"], lag)
-        df["VAR" + str(lag)] = talib.VAR(df["close"], lag)
+        df["LINEARREG_SLOPE_" + str(lag)] = talib.LINEARREG_SLOPE(df["close"], lag)
+        df["STDDEV_" + str(lag)] = talib.STDDEV(df["close"], lag)
+        df["TSF_" + str(lag)] = talib.TSF(df["close"], lag)
+        df["VAR_" + str(lag)] = talib.VAR(df["close"], lag)
 
 
 def generate_pattern_features_df(df: pd.DataFrame):
@@ -266,23 +264,13 @@ def generate_pattern_features_df(df: pd.DataFrame):
         talib.CDLXSIDEGAP3METHODS(df["open"], df["high"], df["low"], df["close"]), 300
     )
 
+
 def generate_time_features(df: pd.DataFrame):
-    df["hour"] = df.index.hour
-    df["minute"] = df.index.minute
-    df["dayofweek"] = df.index.dayofweek
-    df["dayofmonth"] = df.index.day
-    df["month"] = df.index.month
-    df["quarter"] = df.index.quarter
-    df['is_within_15_mins_of_open'] = np.where((df['hour'] == 21 & (df['minute'] >= 0) & (df['minute'] <= 15), 1, 0))
-    df['is_within_15_mins_of_close'] = np.where((df['hour'] == 14) & (df['minute'] >= 45) & (df['minute'] <= 59), 1, 0)
-    df['is_within_7_mins_of_open'] = np.where((df['hour'] == 21 & (df['minute'] >= 0) & (df['minute'] <= 7), 1, 0))
-    df['is_within_7_mins_of_close'] = np.where((df['hour'] == 14) & (df['minute'] >= 53) & (df['minute'] <= 59), 1, 0)
-    df['is_within_5_mins_of_open'] = np.where((df['hour'] == 9) & (df['minute'] >= 25) & (df['minute'] <= 30), 1, 0)
-    df['is_within_5_mins_of_close'] = np.where((df['hour'] == 15) & (df['minute'] >= 55) & (df['minute'] <= 59), 1, 0)
-    df['is_within_3_mins_of_open'] = np.where((df['hour'] == 9) & (df['minute'] >= 27) & (df['minute'] <= 30), 1, 0)
-    df['is_within_3_mins_of_close'] = np.where((df['hour'] == 15) & (df['minute'] >= 57) & (df['minute'] <= 59), 1, 0)
-    df['is_within_1_mins_of_open'] = np.where((df['hour'] == 9) & (df['minute'] >= 29) & (df['minute'] <= 30), 1, 0)
-    df['is_within_1_mins_of_close'] = np.where((df['hour'] == 15) & (df['minute'] >= 59) & (df['minute'] <= 59), 1, 0)
+    df['datetime'] = pd.to_datetime(df['datetime'])
+    df['hour'] = df['datetime'].dt.hour
+    df['minute'] = df['datetime'].dt.minute
+    df['day_of_week'] = df['datetime'].dt.dayofweek
+    df['day_of_month'] = df['datetime'].dt.day
 
 
 def generate_all_features_df(df: pd.DataFrame, lags: list):
@@ -291,7 +279,7 @@ def generate_all_features_df(df: pd.DataFrame, lags: list):
     generate_mom_features_df(df, lags)
     generate_math_features_df(df, lags)
     generate_pattern_features_df(df)
-    # generate_time_features(df)
+    generate_time_features(df)
     df.dropna(inplace=True)
 
     # sort by name

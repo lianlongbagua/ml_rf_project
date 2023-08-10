@@ -1,4 +1,5 @@
-from datetime import datetime
+import re
+import inspect
 
 import pandas as pd
 import numpy as np
@@ -104,3 +105,27 @@ def generate_simple_features(df):
     df['close_change'] = df.close.pct_change(10)
     df['volume_change'] = df.volume.pct_change(10)
     df.dropna(inplace=True)
+
+
+def get_funcs():
+    with open("feature_names.txt", "r") as f:
+        features = f.read()
+    feats = re.findall(r"(\w+\D)(\d+\b)", features)
+
+    func_pool = []
+
+    for func in feats:
+        if func[0] == 'MACDHIST' or func[0] == 'MACDSIGNAL':
+            continue
+        if func[0] == 'MACDSIGNALFIX' or func[0] == 'MACDHISTFIX':
+            continue
+        if func[0] == 'STOCHRSI_k' or func[0] == 'STOCHRSI_d':
+            continue
+        if func[0] == 'HT_PHASORinphase' or func[0] == 'HT_PHASORquadrature':
+            func[0] = 'HT_PHASOR'
+        if func[0] == 'HT_SINEsine' or func[0] == 'HT_SINEleadsine':
+            func[0] = 'HT_SINE'
+        function = getattr(ta, func[0])
+        func_pool.append((function, int(func[1])))
+
+    return func_pool
