@@ -3,13 +3,20 @@ from datetime import datetime
 import pandas as pd
 import numpy as np
 
-from vnpy.trader.constant import Interval, Exchange
-from elite_trader.auth import authenticate
+
+def drop_ohlcv_cols(df: pd.DataFrame):
+    """drop ohlcv columns"""
+    return df.drop(
+        columns=["open", "high", "low", "close", "volume", "open_interest"], axis=1
+    )
 
 
-from sklearn.preprocessing import StandardScaler
-from pandas_ta import log_return
+def split_features_target(df: pd.DataFrame):
+    """split features and target"""
+    X = df.drop(['pos_change_signal', 'net_pos_signal', 'desired_pos_change', 'desired_pos_rolling'], axis=1)
+    y = df[['pos_change_signal', 'net_pos_signal', 'desired_pos_change', 'desired_pos_rolling']]
 
+    return X, y
 
 
 def resample(df: pd.DataFrame, interval: str) -> pd.DataFrame:
@@ -28,22 +35,6 @@ def resample(df: pd.DataFrame, interval: str) -> pd.DataFrame:
 
     return df_resampled
 
-
-def load_essentials(symbol: str, start: str, end: str, exchange: str):
-    """Load data from database with interval=1m"""
-    authenticate("czl", "Vnpy1234")
-    from elite_database import Database
-    db = Database()
-    df = db.load_bar_df(
-        symbol,
-        Exchange(exchange),
-        Interval.MINUTE,
-        datetime.strptime(start, "%Y-%m-%d"),
-        datetime.strptime(end, "%Y-%m-%d"),
-    )
-    trim_df(df)
-
-    return renaming(df)
 
 def keep_essentials(df: pd.DataFrame):
     """Keep only OHLCV"""
