@@ -6,27 +6,13 @@ import joblib
 
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import FunctionTransformer
-from sklearn.ensemble import ExtraTreesClassifier, ExtraTreesRegressor
+from sklearn.ensemble import ExtraTreesClassifier
 from sklearn.feature_selection import SelectFromModel
 from sklearn.model_selection import TimeSeriesSplit, GridSearchCV, train_test_split
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 
 import pandas as pd
-import numpy as np
 
-def drop_ohlcv_cols(df: pd.DataFrame):
-    """drop ohlcv columns"""
-    return df.drop(
-        columns=["open", "high", "low", "close", "volume", "open_interest"], axis=1
-    )
-
-
-def split_features_target(df: pd.DataFrame):
-    """split features and target"""
-    X = df.drop(['pos_change_signal', 'net_pos_signal', 'desired_pos_change', 'desired_pos_rolling'], axis=1)
-    y = df[['pos_change_signal', 'net_pos_signal', 'desired_pos_change', 'desired_pos_rolling']]
-
-    return X, y
 
 if __name__ == "__main__":
     print(
