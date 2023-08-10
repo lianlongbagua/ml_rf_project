@@ -3,7 +3,6 @@ from src.features_extraction import *
 from src.useful_tools import *
 
 import joblib
-
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import FunctionTransformer
 from sklearn.ensemble import ExtraTreesClassifier
@@ -12,6 +11,7 @@ from sklearn.model_selection import TimeSeriesSplit, GridSearchCV, train_test_sp
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 
 from evolutionary_search import EvolutionaryAlgorithmSearchCV
+from skopt import BayesSearchCV
 
 import pandas as pd
 
@@ -21,7 +21,8 @@ if __name__ == "__main__":
         "This script will generate features from a csv file. \n \
         The csv file must contain the following columns: \n \
         datetime, open, high, low, close, volume, open_interest \n \
-        The optimum positions are calculated using forward data, strictly speaking these are the best positions in hindsight \n \
+        The optimum positions are calculated using forward data, strictly \
+        speaking these are the best positions in hindsight \n \
         The script will then select the most relevant features using ExtraTreesClassifier \n \
         It will then begin training 4 models on the data. \n \
         The models are: \n \
@@ -44,18 +45,24 @@ if __name__ == "__main__":
     # read the 'data.csv' file in the current directory
     df = keep_essentials(pd.read_csv(pth))
 
+    train_test_ratio = input(
+        "Enter how much data you want to reserve for testing, default is 0.15:"
+    )
+
     lags = input(
         "Enter lags for feature engineering in the form of \
-                 range(p, q, step): , default is range(10, 100, 10): "
+        range(p, q, step): , default is range(10, 500, 10): "
     )
     if lags == "":
-        lags = [i for i in range(10, 100, 10)]
+        lags = [i for i in range(10, 500, 10)]
     else:
         lags = list(eval(lags))
 
-    cv_mode = input("Enter cross-validation mode, default is 'GridSearchCV': ")
+    cv_mode = input(
+        "Enter cross-validation mode, default is 'BayesSearchCV': "
+    )
     if cv_mode == "":
-        cv_mode = "GridSearchCV"
+        cv_mode = "BayesSearchCV"
 
     preprocessing_pipeline = make_pipeline(
         FunctionTransformer(prepare_desired_pos, kw_args={"lag": 50, "multiplier": 10}),
@@ -66,7 +73,7 @@ if __name__ == "__main__":
     )
 
     feature_selector = SelectFromModel(
-        ExtraTreesClassifier(n_estimators=1000, random_state=42, n_jobs=-1)
+        ExtraTreesClassifier(n_estimators=100, random_state=42, n_jobs=-1)
     )
 
     training_classifier = RandomForestClassifier()
@@ -79,25 +86,33 @@ if __name__ == "__main__":
     print("Beginning feature selection...")
     X = feature_selector.fit_transform(X, y["pos_change_signal"])
     print("Feature selection complete: dropped features: ", X.shape[1] - 1)
+    print("features selected: ", feature_selector.feature_names_in_)
+    print("Saving feature names selected to feature_names.txt...")
+    with open("feature_names.txt", "w") as f:
+        f.write(str(feature_selector.feature_names_in_))
+
 
     print("leaving one set out for testing...")
     X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.15, shuffle=False
+        X, y, test_size=float(train_test_ratio), shuffle=False
     )
     print("Test set left out")
 
     ts_cv = TimeSeriesSplit(n_splits=5)
+
+    param_grid = {
+        "max_depth": [None, 5, 10, 20],
+        "min_samples_split": [i for i in range(100, 5000, 500)],
+        "min_samples_leaf": [i for i in range(100, 5000, 500)],
+        "max_features": ["sqrt", "log2", None],
+    }
+
     print("Beginning training...")
     print("Training classifier for whether to enter into position...")
     if cv_mode == "GridSearchCV":
         classifier_optimizer = GridSearchCV(
             training_classifier,
-            param_grid={
-                "max_depth": [None, 5, 10, 20],
-                "min_samples_split": [i for i in range(100, 5000, 500)],
-                "min_samples_leaf": [i for i in range(100, 5000, 500)],
-                "max_features": ["sqrt", "log2", "None"],
-            },
+            param_grid=param_grid,
             cv=ts_cv,
             scoring="accuracy",
             verbose=2,
@@ -106,12 +121,7 @@ if __name__ == "__main__":
     elif cv_mode == "EvolutionaryAlgorithmSearchCV":
         classifier_optimizer = EvolutionaryAlgorithmSearchCV(
             training_classifier,
-            param_grid={
-                "max_depth": [None, 5, 10, 20],
-                "min_samples_split": [i for i in range(100, 5000, 500)],
-                "min_samples_leaf": [i for i in range(100, 5000, 500)],
-                "max_features": ["sqrt", "log2", "None"],
-            },
+            params=param_grid,
             cv=ts_cv,
             scoring="accuracy",
             verbose=2,
@@ -122,37 +132,38 @@ if __name__ == "__main__":
             tournament_size=3,
             generations_number=30,
         )
+    elif cv_mode == "BayesSearchCV":
+        classifier_optimizer = BayesSearchCV(
+            training_classifier,
+            param_grid,
+            cv=ts_cv,
+            scoring="accuracy",
+            verbose=2,
+            n_jobs=-1,
+            n_iter=50,
+        )
     classifier_optimizer.fit(X_train, y_train["pos_change_signal"])
     print("Classifier for whether to enter into position trained")
     print("Mean score: ", classifier_optimizer.cv_results_["mean_test_score"])
     print("Best score: ", classifier_optimizer.best_score_)
-    print("Best params: ", classifier_optimizer.best_params_)
-    print("Best estimator: ", classifier_optimizer.best_estimator_)
-    print("Best index: ", classifier_optimizer.best_index_)
+    print("Best params: ", str((classifier_optimizer.best_params_)))
     print("Saving model...")
-    joblib.dump(classifier_optimizer.best_estimator_, "models/enter_pos_classifier.pkl")
+    joblib.dump("models/enter_pos_classifier.pkl")
 
     print("Training classifier for whether to hold existing position...")
     classifier_optimizer.fit(X_train, y_train["net_pos_signal"])
     print("Classifier for whether to hold existing position trained")
     print("Mean score: ", classifier_optimizer.cv_results_["mean_test_score"])
     print("Best score: ", classifier_optimizer.best_score_)
-    print("Best params: ", classifier_optimizer.best_params_)
-    print("Best estimator: ", classifier_optimizer.best_estimator_)
-    print("Best index: ", classifier_optimizer.best_index_)
+    print("Best params: ", str((classifier_optimizer.best_params_)))
     print("Saving model...")
-    joblib.dump(classifier_optimizer.best_estimator_, "models/hold_pos_classifier.pkl")
+    joblib.dump("models/hold_pos_classifier.pkl")
 
     print("Training regressor for how much to change position by...")
     if cv_mode == "GridSearchCV":
         regressor_optimzier = GridSearchCV(
             training_regressor,
-            param_grid={
-                "max_depth": [None, 5, 10, 20],
-                "min_samples_split": [i for i in range(100, 5000, 500)],
-                "min_samples_leaf": [i for i in range(100, 5000, 500)],
-                "max_features": ["sqrt", "log2", "None"],
-            },
+            params=param_grid,
             cv=ts_cv,
             scoring="R2",
             verbose=2,
@@ -161,15 +172,10 @@ if __name__ == "__main__":
     elif cv_mode == "EvolutionaryAlgorithmSearchCV":
         regressor_optimzier = EvolutionaryAlgorithmSearchCV(
             training_regressor,
-            param_grid={
-                "max_depth": [None, 5, 10, 20],
-                "min_samples_split": [i for i in range(100, 5000, 500)],
-                "min_samples_leaf": [i for i in range(100, 5000, 500)],
-                "max_features": ["sqrt", "log2", "None"],
-            },
+            param_grid=param_grid,
             cv=ts_cv,
             scoring="R2",
-            verbose=2,
+            verbose=True,
             n_jobs=-1,
             population_size=50,
             gene_mutation_prob=0.10,
@@ -177,39 +183,47 @@ if __name__ == "__main__":
             tournament_size=3,
             generations_number=30,
         )
+    elif cv_mode == "BayesSearchCV":
+        regressor_optimzier = BayesSearchCV(
+            training_regressor,
+            param_grid,
+            cv=ts_cv,
+            scoring="R2",
+            verbose=2,
+            n_jobs=-1,
+            n_iter=50,
+        )
     regressor_optimzier.fit(X_train, y_train["desired_pos_change"])
     print("Best score: ", regressor_optimzier.best_score_)
-    print("Best params: ", regressor_optimzier.best_params_)
-    print("Best estimator: ", regressor_optimzier.best_estimator_)
+    print("Best params: ", str(regressor_optimzier.best_params_))
     print("Saving model...")
-    joblib.dump(regressor_optimzier.best_estimator_, "models/change_pos_regressor.pkl")
+    joblib.dump("models/change_pos_regressor.pkl")
 
     print("Regressor for how much to change position by trained")
     regressor_optimzier.fit(X_train, y_train["desired_pos_rolling"])
     print("Best score: ", regressor_optimzier.best_score_)
-    print("Best params: ", regressor_optimzier.best_params_)
-    print("Best estimator: ", regressor_optimzier.best_estimator_)
+    print("Best params: ", str(regressor_optimzier.best_params_))
     print("Saving model...")
-    joblib.dump(regressor_optimzier.best_estimator_, "models/hold_pos_regressor.pkl")
+    joblib.dump("models/hold_pos_regressor.pkl")
 
     print("Training complete")
     print("Summary of results:")
     print("Classifier for whether to enter into position:")
     print("Best estimator: ", classifier_optimizer.best_estimator_)
     print("Best score: ", classifier_optimizer.best_score_)
-    print("Best params: ", classifier_optimizer.best_params_)
+    print("Best params: ", str(classifier_optimizer.best_params_))
     print("Classifier for whether to hold existing position:")
     print("Best estimator: ", classifier_optimizer.best_estimator_)
     print("Best score: ", classifier_optimizer.best_score_)
-    print("Best params: ", classifier_optimizer.best_params_)
+    print("Best params: ", str(classifier_optimizer.best_params_))
     print("Regressor for how much to change position by:")
     print("Best estimator: ", regressor_optimzier.best_estimator_)
     print("Best score: ", regressor_optimzier.best_score_)
-    print("Best params: ", regressor_optimzier.best_params_)
+    print("Best params: ", str(regressor_optimzier.best_params_))
     print("Regressor for how much position to hold:")
     print("Best estimator: ", regressor_optimzier.best_estimator_)
     print("Best score: ", regressor_optimzier.best_score_)
-    print("Best params: ", regressor_optimzier.best_params_)
+    print("Best params: ", str(regressor_optimzier.best_params_))
 
     print("Beginning testing...")
     print("Testing classifier for whether to enter into position...")
@@ -226,27 +240,23 @@ if __name__ == "__main__":
     results = pd.DataFrame(
         {
             "Classifier for whether to enter into position": [
-                classifier_optimizer.best_estimator_,
                 classifier_optimizer.best_score_,
-                classifier_optimizer.best_params_,
+                str(classifier_optimizer.best_params_),
                 classifier_optimizer.score(X_test, y_test["pos_change_signal"]),
             ],
             "Classifier for whether to hold existing position": [
-                classifier_optimizer.best_estimator_,
                 classifier_optimizer.best_score_,
-                classifier_optimizer.best_params_,
+                str(classifier_optimizer.best_params_),
                 classifier_optimizer.score(X_test, y_test["net_pos_signal"]),
             ],
             "Regressor for how much to change position by": [
-                regressor_optimzier.best_estimator_,
                 regressor_optimzier.best_score_,
-                regressor_optimzier.best_params_,
+                str(regressor_optimzier.best_params_),
                 regressor_optimzier.score(X_test, y_test["desired_pos_change"]),
             ],
             "Regressor for how much position to hold": [
-                regressor_optimzier.best_estimator_,
                 regressor_optimzier.best_score_,
-                regressor_optimzier.best_params_,
+                str(regressor_optimzier.best_params_),
                 regressor_optimzier.score(X_test, y_test["desired_pos_rolling"]),
             ],
         }
