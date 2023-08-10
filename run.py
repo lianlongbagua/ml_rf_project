@@ -10,7 +10,6 @@ from sklearn.feature_selection import SelectFromModel
 from sklearn.model_selection import TimeSeriesSplit, GridSearchCV, train_test_split
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 
-from evolutionary_search import EvolutionaryAlgorithmSearchCV
 from skopt import BayesSearchCV
 
 import pandas as pd
@@ -58,9 +57,7 @@ if __name__ == "__main__":
     else:
         lags = list(eval(lags))
 
-    cv_mode = input(
-        "Enter cross-validation mode, default is 'BayesSearchCV': "
-    )
+    cv_mode = input("Enter cross-validation mode, default is 'BayesSearchCV': ")
     if cv_mode == "":
         cv_mode = "BayesSearchCV"
 
@@ -91,7 +88,6 @@ if __name__ == "__main__":
     with open("feature_names.txt", "w") as f:
         f.write(str(feature_selector.feature_names_in_))
 
-
     print("leaving one set out for testing...")
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=float(train_test_ratio), shuffle=False
@@ -117,20 +113,6 @@ if __name__ == "__main__":
             scoring="accuracy",
             verbose=2,
             n_jobs=-1,
-        )
-    elif cv_mode == "EvolutionaryAlgorithmSearchCV":
-        classifier_optimizer = EvolutionaryAlgorithmSearchCV(
-            training_classifier,
-            params=param_grid,
-            cv=ts_cv,
-            scoring="accuracy",
-            verbose=2,
-            n_jobs=-1,
-            population_size=50,
-            gene_mutation_prob=0.10,
-            gene_crossover_prob=0.5,
-            tournament_size=3,
-            generations_number=30,
         )
     elif cv_mode == "BayesSearchCV":
         classifier_optimizer = BayesSearchCV(
@@ -168,20 +150,6 @@ if __name__ == "__main__":
             scoring="R2",
             verbose=2,
             n_jobs=-1,
-        )
-    elif cv_mode == "EvolutionaryAlgorithmSearchCV":
-        regressor_optimzier = EvolutionaryAlgorithmSearchCV(
-            training_regressor,
-            param_grid=param_grid,
-            cv=ts_cv,
-            scoring="R2",
-            verbose=True,
-            n_jobs=-1,
-            population_size=50,
-            gene_mutation_prob=0.10,
-            gene_crossover_prob=0.5,
-            tournament_size=3,
-            generations_number=30,
         )
     elif cv_mode == "BayesSearchCV":
         regressor_optimzier = BayesSearchCV(
