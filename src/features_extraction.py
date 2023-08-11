@@ -266,11 +266,14 @@ def generate_pattern_features_df(df: pd.DataFrame):
 
 
 def generate_time_features(df: pd.DataFrame):
+    print("Generating time features...")
+    print(df.datetime.head())
     df['datetime'] = pd.to_datetime(df['datetime'])
     df['hour'] = df['datetime'].dt.hour
     df['minute'] = df['datetime'].dt.minute
     df['day_of_week'] = df['datetime'].dt.dayofweek
     df['day_of_month'] = df['datetime'].dt.day
+    df.drop(columns=['datetime'], inplace=True)
 
 
 def generate_all_features_df(df: pd.DataFrame, lags: list):

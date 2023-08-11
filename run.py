@@ -47,10 +47,12 @@ if __name__ == "__main__":
     train_test_ratio = input(
         "Enter how much data you want to reserve for testing, default is 0.15:"
     )
+    if train_test_ratio == "":
+        train_test_ratio = 0.15
 
     lags = input(
         "Enter lags for feature engineering in the form of \
-        range(p, q, step): , default is range(10, 500, 10): "
+    range(p, q, step): , default is range(10, 500, 10): "
     )
     if lags == "":
         lags = [i for i in range(10, 500, 10)]
@@ -86,7 +88,7 @@ if __name__ == "__main__":
     print("features selected: ", feature_selector.feature_names_in_)
     print("Saving feature names selected to feature_names.txt...")
     with open("feature_names.txt", "w") as f:
-        f.write(str(feature_selector.feature_names_in_))
+        f.write(str(feature_selector.get_feature_names_out_()))
 
     print("leaving one set out for testing...")
     X_train, X_test, y_train, y_test = train_test_split(

@@ -40,7 +40,7 @@ def resample(df: pd.DataFrame, interval: str) -> pd.DataFrame:
 def keep_essentials(df: pd.DataFrame):
     """Keep only OHLCV"""
     df.drop(
-        columns=["exchange", "turnover","symbol", "datetime"],
+        columns=["exchange", "turnover", "symbol"],
         axis=1,
         inplace=True,
     )
