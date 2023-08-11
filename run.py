@@ -1,6 +1,6 @@
-from src.targets_extraction import *
-from src.features_extraction import *
-from src.useful_tools import *
+from .src.targets_extraction import *
+from .src.features_extraction import *
+from .src.useful_tools import *
 
 import joblib
 from sklearn.pipeline import make_pipeline
@@ -10,6 +10,8 @@ from sklearn.feature_selection import SelectFromModel
 from sklearn.model_selection import TimeSeriesSplit, GridSearchCV, train_test_split
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 
+from sklearn_genetic import GASearchCV
+
 from skopt import BayesSearchCV
 
 import pandas as pd
@@ -17,24 +19,23 @@ import pandas as pd
 
 if __name__ == "__main__":
     print(
-        "This script will generate features from a csv file. \n \
-        The csv file must contain the following columns: \n \
-        datetime, open, high, low, close, volume, open_interest \n \
-        The optimum positions are calculated using forward data, strictly \
-        speaking these are the best positions in hindsight \n \
-        The script will then select the most relevant features using ExtraTreesClassifier \n \
-        It will then begin training 4 models on the data. \n \
-        The models are: \n \
-        \t 1. Random Forest Classifier for whether to enter into position\n \
-        \t 2. Random Forest Classifier for whether to hold existing position\n \
-        \t 3. Random Forest Regressor for how much to change position by\n \
-        \t 4. Random Forest Regressor for how much position to hold\n \
-        for the classification models, both a prediction and a degree of confidence will be given\n \
-        for the regression models, only a prediction will be given\n \
-        The models will be saved to the models folder\n \
-        cross-validation will be performed on the models\n \
-        The results of the cross-validation will be saved to the results folder\n \
-        "
+        "This script will generate features from a csv file. \n"
+        "The csv file must contain the following columns: \n"
+        "datetime, open, high, low, close, volume, open_interest \n"
+        "The optimum positions are calculated using forward data, strictly \n"
+        "speaking these are the best positions in hindsight \n"
+        "The script will then select the most relevant features using ExtraTreesClassifier \n"
+        "It will then begin training 4 models on the data. \n"
+        "The models are: \n"
+        "\t 1. Random Forest Classifier for whether to enter into position\n"
+        "\t 2. Random Forest Classifier for whether to hold existing position\n"
+        "\t 3. Random Forest Regressor for how much to change position by\n"
+        "\t 4. Random Forest Regressor for how much position to hold\n"
+        "for the classification models, both a prediction and a degree of confidence will be given\n"
+        "for the regression models, only a prediction will be given\n"
+        "The models will be saved to the models folder\n"
+        "cross-validation will be performed on the models\n"
+        "The results of the cross-validation will be saved to the results folder\n"
     )
     pth = input(
         "Enter path to csv file, if using default named 'data.csv', press enter: "
@@ -51,15 +52,18 @@ if __name__ == "__main__":
         train_test_ratio = 0.15
 
     lags = input(
-        "Enter lags for feature engineering in the form of \
-    range(p, q, step): , default is range(10, 500, 10): "
+        "Enter lags for feature engineering in the form of"
+        "range(p, q, step): , default is range(10, 500, 10):"
     )
     if lags == "":
         lags = [i for i in range(10, 500, 10)]
     else:
         lags = list(eval(lags))
 
-    cv_mode = input("Enter cross-validation mode, default is 'BayesSearchCV': ")
+    cv_mode = input(
+        "Enter cross-validation mode, default is 'BayesSearchCV': \n"
+        "Now you can choose either 'GridSearchCV', 'BayesSearchCV', or 'GASearchCV'"
+    )
     if cv_mode == "":
         cv_mode = "BayesSearchCV"
 
@@ -75,8 +79,8 @@ if __name__ == "__main__":
         ExtraTreesClassifier(n_estimators=100, random_state=42, n_jobs=-1)
     )
 
-    training_classifier = RandomForestClassifier()
-    training_regressor = RandomForestRegressor()
+    training_classifier = RandomForestClassifier(n_jobs=-1)
+    training_regressor = RandomForestRegressor(n_jobs=-1)
 
     print("Beginning preprocessing...")
     X, y = preprocessing_pipeline.fit_transform(df)
@@ -118,6 +122,16 @@ if __name__ == "__main__":
         )
     elif cv_mode == "BayesSearchCV":
         classifier_optimizer = BayesSearchCV(
+            training_classifier,
+            param_grid,
+            cv=ts_cv,
+            scoring="accuracy",
+            verbose=2,
+            n_jobs=-1,
+            n_iter=50,
+        )
+    elif cv_mode == "GASearchCV":
+        classifier_optimizer = GASearchCV(
             training_classifier,
             param_grid,
             cv=ts_cv,
