@@ -6,7 +6,7 @@ from elite_ctastrategy import HistoryManager
 
 
 class FeatureDispatcher:
-    """Function dispatcher for feature generation."""
+    """dispatcher for feature generation."""
 
     def __init__(self):
         with open("../src/feature_names.txt", "r") as f:
