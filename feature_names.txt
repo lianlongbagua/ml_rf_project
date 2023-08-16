@@ -1,1 +1,0 @@
-['ADOSC_10' 'ADOSC_100' 'ADOSC_110' ... 'day_of_week' 'hour' 'minute']

@@ -1,6 +1,6 @@
-from .src.targets_extraction import *
-from .src.features_extraction import *
-from .src.useful_tools import *
+from targets_extraction import *
+from features_extraction import *
+from useful_tools import *
 
 import joblib
 from sklearn.pipeline import make_pipeline
@@ -41,8 +41,8 @@ if __name__ == "__main__":
         "Enter path to csv file, if using default named 'data.csv', press enter: "
     )
     if pth == "":
-        pth = "data.csv"
-    # read the 'data.csv' file in the current directory
+        pth = "../data/data.csv"
+    # read the 'data.csv' file in the data folder
     df = keep_essentials(pd.read_csv(pth))
 
     train_test_ratio = input(
@@ -92,7 +92,12 @@ if __name__ == "__main__":
     print("features selected: ", feature_selector.feature_names_in_)
     print("Saving feature names selected to feature_names.txt...")
     with open("feature_names.txt", "w") as f:
-        f.write(str(feature_selector.get_feature_names_out_()))
+        i = 0
+        for string in feature_selector.feature_names_in_:
+            f.write(str(i) + "_" + string + ",")
+            i += 1
+
+    exit()
 
     print("leaving one set out for testing...")
     X_train, X_test, y_train, y_test = train_test_split(
@@ -173,6 +178,16 @@ if __name__ == "__main__":
             param_grid,
             cv=ts_cv,
             scoring="R2",
+            verbose=2,
+            n_jobs=-1,
+            n_iter=50,
+        )
+    elif cv_mode == "GASearchCV":
+        regressor_optimzier = GASearchCV(
+            training_regressor,
+            param_grid,
+            cv=ts_cv,
+            scoring="accuracy",
             verbose=2,
             n_jobs=-1,
             n_iter=50,

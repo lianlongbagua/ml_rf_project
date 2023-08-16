@@ -3,7 +3,9 @@ import numpy as np
 import talib
 import warnings
 
+
 def generate_og_features_df(df: pd.DataFrame, lags: list):
+    print("Generating original features...")
     for lag in lags:
         df["ADOSC_" + str(lag)] = talib.ADOSC(
             df["high"], df["low"], df["close"], df["volume"], lag, lag * 3
@@ -14,6 +16,7 @@ def generate_og_features_df(df: pd.DataFrame, lags: list):
 
 
 def generate_mom_features_df(df: pd.DataFrame, lags: list):
+    print("Generating momentum features...")
     for lag in lags:
         df["ROC_" + str(lag)] = talib.ROC(df["close"], lag)
         df["MOM_" + str(lag)] = talib.MOM(df["close"], lag)
@@ -27,26 +30,30 @@ def generate_mom_features_df(df: pd.DataFrame, lags: list):
         df["CCI_" + str(lag)] = talib.CCI(df["high"], df["low"], df["close"], lag)
         df["CMO_" + str(lag)] = talib.CMO(df["close"], lag)
         df["DX_" + str(lag)] = talib.DX(df["high"], df["low"], df["close"], lag)
-        (
-            df["MACD_" + str(lag)],
-            df["MACDSIGNAL_" + str(lag)],
-            df["MACDHIST_" + str(lag)],
-        ) = talib.MACD(df["close"], lag, lag * 2, lag * 3)
-        (
-            df["MACDFIX_" + str(lag)],
-            df["MACDSIGNALFIX_" + str(lag)],
-            df["MACDHISTFIX_" + str(lag)],
-        ) = talib.MACDFIX(df["close"], lag)
+        df["STOCH_" + str(lag) + "slowk"], _ = talib.STOCH(
+            df["high"],
+            df["low"],
+            df["close"],
+            fastk_period=lag,
+            slowk_period=int(lag / 2),
+            slowk_matype=0,
+            slowd_period=int(lag / 2),
+            slowd_matype=0,
+        )
+        df["STOCHF_" + str(lag) + "fastk"], _ = talib.STOCHF(
+            df["high"], df["low"], df["close"], lag, int(lag / 2), 0
+        )
+        (_, df["MACDSIGNAL_" + str(lag)], _) = talib.MACD(
+            df["close"], lag, lag * 2, int(lag / 2)
+        )
+        _, df["MACDSIGNALFIX_" + str(lag)], _ = talib.MACDFIX(df["close"], lag)
         df["PPO_" + str(lag)] = talib.PPO(df["close"], lag, lag * 2)
         df["RSI_" + str(lag)] = talib.RSI(df["close"], lag)
         df["ULTOSC_" + str(lag)] = talib.ULTOSC(
             df["high"], df["low"], df["close"], lag, lag * 2, lag * 3
         )
         df["WILLR_" + str(lag)] = talib.WILLR(df["high"], df["low"], df["close"], lag)
-        (
-            df["STOCHRSI_" + str(lag) + "k"],
-            df["STOCHRSI_" + str(lag) + "d"],
-        ) = talib.STOCHRSI(df["close"], lag, 3, 3)
+        df["STOCHRSI_" + str(lag) + "k"], _ = talib.STOCHRSI(df["close"], lag, 3, 3)
         df["NATR_" + str(lag)] = talib.NATR(df["high"], df["low"], df["close"], lag)
         df["ATR_" + str(lag)] = talib.ATR(df["high"], df["low"], df["close"], lag)
         df["TRANGE_" + str(lag)] = talib.TRANGE(df["high"], df["low"], df["close"])
@@ -55,12 +62,12 @@ def generate_mom_features_df(df: pd.DataFrame, lags: list):
     df["HT_TRENDMODE"] = talib.HT_TRENDMODE(df["close"])
     df["HT_DCPERIOD"] = talib.HT_DCPERIOD(df["close"])
     df["HT_DCPHASE"] = talib.HT_DCPHASE(df["close"])
-    df["HT_PHASORinphase"], df["HT_PHASORquadrature"] = talib.HT_PHASOR(df["close"])
-    df["HT_SINEsine"], df["HT_SINEleadsine"] = talib.HT_SINE(df["close"])
-    df["BOP"] = talib.BOP(df["open"], df["high"], df["low"], df["close"])
+    df["HT_PHASORinphase"], _= talib.HT_PHASOR(df["close"])
+    df["HT_SINEsine"], _ = talib.HT_SINE(df["close"])
 
 
 def generate_math_features_df(df: pd.DataFrame, lags: list):
+    print("Generating math features...")
     for lag in lags:
         df["BETA_" + str(lag)] = talib.BETA(df["high"], df["low"], lag)
         df["CORREL_" + str(lag)] = talib.CORREL(df["high"], df["low"], lag)
@@ -76,6 +83,7 @@ def generate_math_features_df(df: pd.DataFrame, lags: list):
 
 
 def generate_pattern_features_df(df: pd.DataFrame):
+    print("Generating pattern features...")
     df["CDL2CROWS"] = talib.WMA(
         talib.CDL2CROWS(df["open"], df["high"], df["low"], df["close"]), 300
     )
@@ -267,13 +275,12 @@ def generate_pattern_features_df(df: pd.DataFrame):
 
 def generate_time_features(df: pd.DataFrame):
     print("Generating time features...")
-    print(df.datetime.head())
-    df['datetime'] = pd.to_datetime(df['datetime'])
-    df['hour'] = df['datetime'].dt.hour
-    df['minute'] = df['datetime'].dt.minute
-    df['day_of_week'] = df['datetime'].dt.dayofweek
-    df['day_of_month'] = df['datetime'].dt.day
-    df.drop(columns=['datetime'], inplace=True)
+    df["datetime"] = pd.to_datetime(df["datetime"])
+    df["time_hour"] = df["datetime"].dt.hour
+    df["time_minute"] = df["datetime"].dt.minute
+    df["time_day_of_week"] = df["datetime"].dt.dayofweek
+    df["time_day_of_month"] = df["datetime"].dt.day
+    df.drop(columns=["datetime"], inplace=True)
 
 
 def generate_all_features_df(df: pd.DataFrame, lags: list):

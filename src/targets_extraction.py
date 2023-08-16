@@ -5,6 +5,7 @@ import numpy as np
 
 
 def prepare_desired_pos(df, lag=50, multiplier=10):
+    print('Generating desired position...')
     df = df.copy()
     scaler = StandardScaler()
     df[f"{lag}m_ret"] = scaler.fit_transform(
