@@ -16,7 +16,6 @@ from skopt import BayesSearchCV
 
 import pandas as pd
 
-
 if __name__ == "__main__":
     print(
         "This script will generate features from a csv file. \n"
@@ -68,7 +67,12 @@ if __name__ == "__main__":
         cv_mode = "BayesSearchCV"
 
     preprocessing_pipeline = make_pipeline(
-        FunctionTransformer(prepare_desired_pos, kw_args={"lag": 50, "multiplier": 10}),
+        FunctionTransformer(
+            prepare_desired_pos, kw_args={
+                "lag": 50,
+                "multiplier": 10
+            }
+        ),
         FunctionTransformer(generate_all_features_df, kw_args={"lags": lags}),
         FunctionTransformer(drop_ohlcv_cols),
         FunctionTransformer(split_features_target),
@@ -79,8 +83,8 @@ if __name__ == "__main__":
         ExtraTreesClassifier(n_estimators=100, random_state=42, n_jobs=-1)
     )
 
-    training_classifier = RandomForestClassifier(n_jobs=-1)
-    training_regressor = RandomForestRegressor(n_jobs=-1)
+    training_classifier = RandomForestClassifier()
+    training_regressor = RandomForestRegressor()
 
     print("Beginning preprocessing...")
     X, y = preprocessing_pipeline.fit_transform(df)
@@ -97,8 +101,6 @@ if __name__ == "__main__":
             f.write(str(i) + "_" + string + ",")
             i += 1
 
-    exit()
-
     print("leaving one set out for testing...")
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=float(train_test_ratio), shuffle=False
@@ -109,8 +111,8 @@ if __name__ == "__main__":
 
     param_grid = {
         "max_depth": [None, 5, 10, 20],
-        "min_samples_split": [i for i in range(100, 5000, 500)],
-        "min_samples_leaf": [i for i in range(100, 5000, 500)],
+        "min_samples_split": [i for i in range(100, 1000, 200)],
+        "min_samples_leaf": [i for i in range(100, 1000, 200)],
         "max_features": ["sqrt", "log2", None],
     }
 
@@ -137,8 +139,8 @@ if __name__ == "__main__":
         )
     elif cv_mode == "GASearchCV":
         classifier_optimizer = GASearchCV(
-            training_classifier,
-            param_grid,
+            estimator=training_classifier,
+            param_grid=param_grid,
             cv=ts_cv,
             scoring="accuracy",
             verbose=2,
@@ -184,8 +186,8 @@ if __name__ == "__main__":
         )
     elif cv_mode == "GASearchCV":
         regressor_optimzier = GASearchCV(
-            training_regressor,
-            param_grid,
+            estimator=training_regressor,
+            param_grid=param_grid,
             cv=ts_cv,
             scoring="accuracy",
             verbose=2,
@@ -226,40 +228,50 @@ if __name__ == "__main__":
 
     print("Beginning testing...")
     print("Testing classifier for whether to enter into position...")
-    print("Score: ", classifier_optimizer.score(X_test, y_test["pos_change_signal"]))
+    print(
+        "Score: ",
+        classifier_optimizer.score(X_test, y_test["pos_change_signal"])
+    )
     print("Testing classifier for whether to hold existing position...")
-    print("Score: ", classifier_optimizer.score(X_test, y_test["net_pos_signal"]))
+    print(
+        "Score: ",
+        classifier_optimizer.score(X_test, y_test["net_pos_signal"])
+    )
     print("Testing regressor for how much to change position by...")
-    print("Score: ", regressor_optimzier.score(X_test, y_test["desired_pos_change"]))
+    print(
+        "Score: ",
+        regressor_optimzier.score(X_test, y_test["desired_pos_change"])
+    )
     print("Testing regressor for how much position to hold...")
-    print("Score: ", regressor_optimzier.score(X_test, y_test["desired_pos_rolling"]))
+    print(
+        "Score: ",
+        regressor_optimzier.score(X_test, y_test["desired_pos_rolling"])
+    )
     print("Testing complete")
 
     print("Saving results...")
-    results = pd.DataFrame(
-        {
-            "Classifier for whether to enter into position": [
-                classifier_optimizer.best_score_,
-                str(classifier_optimizer.best_params_),
-                classifier_optimizer.score(X_test, y_test["pos_change_signal"]),
-            ],
-            "Classifier for whether to hold existing position": [
-                classifier_optimizer.best_score_,
-                str(classifier_optimizer.best_params_),
-                classifier_optimizer.score(X_test, y_test["net_pos_signal"]),
-            ],
-            "Regressor for how much to change position by": [
-                regressor_optimzier.best_score_,
-                str(regressor_optimzier.best_params_),
-                regressor_optimzier.score(X_test, y_test["desired_pos_change"]),
-            ],
-            "Regressor for how much position to hold": [
-                regressor_optimzier.best_score_,
-                str(regressor_optimzier.best_params_),
-                regressor_optimzier.score(X_test, y_test["desired_pos_rolling"]),
-            ],
-        }
-    )
+    results = pd.DataFrame({
+        "Classifier for whether to enter into position": [
+            classifier_optimizer.best_score_,
+            str(classifier_optimizer.best_params_),
+            classifier_optimizer.score(X_test, y_test["pos_change_signal"]),
+        ],
+        "Classifier for whether to hold existing position": [
+            classifier_optimizer.best_score_,
+            str(classifier_optimizer.best_params_),
+            classifier_optimizer.score(X_test, y_test["net_pos_signal"]),
+        ],
+        "Regressor for how much to change position by": [
+            regressor_optimzier.best_score_,
+            str(regressor_optimzier.best_params_),
+            regressor_optimzier.score(X_test, y_test["desired_pos_change"]),
+        ],
+        "Regressor for how much position to hold": [
+            regressor_optimzier.best_score_,
+            str(regressor_optimzier.best_params_),
+            regressor_optimzier.score(X_test, y_test["desired_pos_rolling"]),
+        ],
+    })
     results.to_csv("results/results.csv")
     print("Results saved")
 
