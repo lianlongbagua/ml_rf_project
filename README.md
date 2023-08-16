@@ -27,3 +27,4 @@
 ## 6. Explain Model
 - Use SHAP
 - Use sklearn's plotting function
+## 7. Pack & Ship for production
