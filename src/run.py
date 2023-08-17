@@ -77,17 +77,11 @@ if __name__ == "__main__":
 
     params = config.PARAM_GRID_TREE
 
-    param_grid = {
-    "max_depth": [5],
-    "min_samples_split": [i for i in range(100, 200, 100)],
-    "max_features": ["log2"],
-    }
-
     print("Beginning training...")
     print("Training classifier for whether to enter into position...")
     classifier_optimizer = config.cross_validation[args.cv](
-        estimator=training_classifier,
-        param_grid=params,
+        training_classifier,
+        params,
         cv=ts_cv,
         scoring="accuracy",
         verbose=2,
