@@ -1,0 +1,2 @@
+,mean_fit_time,std_fit_time,mean_score_time,std_score_time,param_max_depth,param_max_features,param_min_samples_split,params,split0_test_score,split1_test_score,split2_test_score,split3_test_score,split4_test_score,mean_test_score,std_test_score,rank_test_score
+0,192.50648021697998,81.62328276311281,1.013265609741211,0.17402179107861895,5,log2,100,"{'max_depth': 5, 'max_features': 'log2', 'min_samples_split': 100}",0.3354478438320625,0.2855221944505964,0.27460689087860285,0.2759989875660455,0.2544689467523017,0.28520897269592177,0.027078476474386284,1

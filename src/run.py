@@ -63,8 +63,9 @@ if __name__ == "__main__":
     print("Preprocessing complete")
 
     print("Beginning feature selection...")
+    preselected_feats = X.shape[1]
     X = feature_selector.fit_transform(X, y["pos_change_signal"])
-    print("Feature selection complete: dropped features: ", X.shape[1] - 1)
+    print("feature selection complete. number of dropped features", X.shape[1] - preselected_feats)
     print("features selected: ", feature_selector.feature_names_in_)
     print("Saving feature names selected to feature_names.txt...")
     with open("feature_names.txt", "w") as f:
