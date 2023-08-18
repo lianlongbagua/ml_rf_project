@@ -2,22 +2,19 @@ from sklearn import tree
 from sklearn import ensemble
 from sklearn.experimental import enable_halving_search_cv
 from sklearn.model_selection import (
-    GridSearchCV,
-    RandomizedSearchCV,
-    HalvingGridSearchCV,
+    GridSearchCV, RandomizedSearchCV, HalvingGridSearchCV,
     HalvingRandomSearchCV
 )
 from sklearn_genetic import GASearchCV
 from sklearn_genetic.space import Integer, Categorical, Continuous
 from skopt import BayesSearchCV
-
 """
 Some boilerplate configs for the project
 """
 
 TRAINING_DATA = "../data/data.csv"
 
-LAGS = [10, 20]
+LAGS = [i for i in range(7, 150, 10)]
 
 PARAM_GRID_TREE = {
     "max_depth": [None, 5, 10, 20],
@@ -27,21 +24,26 @@ PARAM_GRID_TREE = {
 }
 
 GENETIC_PARAM_GRID_TREE = {
-"max_depth": Integer(5, 6),
-"min_samples_split": Integer(100, 200),
-"max_features": Categorical(["log2"]),
+    "max_depth": Integer(5, 6),
+    "min_samples_split": Integer(100, 200),
+    "max_features": Categorical(["log2"]),
 }
-
 """
 Models and CV's to use
 """
 
 model_combos = {
-    "DecisionTree": (tree.DecisionTreeClassifier(), tree.DecisionTreeRegressor()),
-    "RandomForest": (ensemble.RandomForestClassifier(), ensemble.RandomForestRegressor()),
-    "ExtraTrees": (ensemble.ExtraTreesClassifier(), ensemble.ExtraTreesRegressor()),
+    "DecisionTree":
+    (tree.DecisionTreeClassifier(), tree.DecisionTreeRegressor()),
+    "RandomForest":
+    (ensemble.RandomForestClassifier(), ensemble.RandomForestRegressor()),
+    "ExtraTrees":
+    (ensemble.ExtraTreesClassifier(), ensemble.ExtraTreesRegressor()),
     "AdaBoost": (ensemble.AdaBoostClassifier(), ensemble.AdaBoostRegressor()),
-    "GradientBoosting": (ensemble.GradientBoostingClassifier(), ensemble.GradientBoostingRegressor()),
+    "GradientBoosting": (
+        ensemble.GradientBoostingClassifier(),
+        ensemble.GradientBoostingRegressor()
+    ),
 }
 
 models = {
