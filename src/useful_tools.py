@@ -3,21 +3,30 @@ from functools import partial
 
 import pandas as pd
 import numpy as np
-from talib_map import ta_map
+
 
 def drop_ohlcv_cols(df: pd.DataFrame):
     """drop ohlcv columns"""
     print('Dropping OHLCV columns')
     return df.drop(
-        columns=["open", "high", "low", "close", "volume", "open_interest"], axis=1
+        columns=["open", "high", "low", "close", "volume", "open_interest"],
+        axis=1
     )
 
 
 def split_features_target(df: pd.DataFrame):
     """split features and target"""
     print("Splitting features/target")
-    X = df.drop(['pos_change_signal', 'net_pos_signal', 'desired_pos_change', 'desired_pos_rolling'], axis=1)
-    y = df[['pos_change_signal', 'net_pos_signal', 'desired_pos_change', 'desired_pos_rolling']]
+    X = df.drop([
+        'pos_change_signal', 'net_pos_signal', 'desired_pos_change',
+        'desired_pos_rolling'
+    ],
+                axis=1)
+    y = df[[
+        'pos_change_signal', 'net_pos_signal', 'desired_pos_change',
+        'desired_pos_rolling'
+    ]]
+    print('Features/target split complete')
 
     return X, y
 
@@ -42,7 +51,7 @@ def resample(df: pd.DataFrame, interval: str) -> pd.DataFrame:
 def keep_essentials(df: pd.DataFrame):
     """Keep only OHLCVT"""
     df.drop(
-        columns=["exchange", "turnover","symbol"],
+        columns=["exchange", "turnover", "symbol"],
         axis=1,
         inplace=True,
     )
@@ -52,7 +61,9 @@ def keep_essentials(df: pd.DataFrame):
 def trim_df(df: pd.DataFrame, keep_symbol=False):
     """Trim everything other than OHLCV with option to keep symbol"""
     df.drop(
-        columns=["exchange", "interval", "turnover", "datetime", "gateway_name"],
+        columns=[
+            "exchange", "interval", "turnover", "datetime", "gateway_name"
+        ],
         axis=1,
         inplace=True,
     )
@@ -96,7 +107,8 @@ def remove_infs_and_zeros(df: pd.DataFrame):
 def drop_ohlcv_cols(df: pd.DataFrame):
     """drop ohlcv columns"""
     return df.drop(
-        columns=["open", "high", "low", "close", "volume", "open_interest"], axis=1
+        columns=["open", "high", "low", "close", "volume", "open_interest"],
+        axis=1
     )
 
 
@@ -107,29 +119,3 @@ def generate_simple_features(df):
     df['close_change'] = df.close.pct_change(10)
     df['volume_change'] = df.volume.pct_change(10)
     df.dropna(inplace=True)
-
-
-def get_funcs():
-    with open("feature_names.txt", "r") as f:
-        features = f.read()
-    interval_feats = re.findall(r"(\w+)_(\d+)", features)
-    pattern_feats = re.findall(r"CDL", features)
-    time_feats = re.findall((r"time"), features)
-    ht_feats = re.findall(r"HT", features)
-    func_pool = []
-
-    for func in interval_feats:
-        if func[0] == 'MACDHIST' or func[0] == 'MACDSIGNAL':
-            continue
-        if func[0] == 'MACDSIGNALFIX' or func[0] == 'MACDHISTFIX':
-            continue
-        # if func[0] == 'HT_PHASORinphase' or func[0] == 'HT_PHASORquadrature':
-        #     func[0] = 'HT_PHASOR'
-        # if func[0] == 'HT_SINEsine' or func[0] == 'HT_SINEleadsine':
-        #     func[0] = 'HT_SINE'
-
-        function = ta_map[func[0]]
-        function = partial(function, timeperiod=int(func[1]))
-        func_pool.append((function, int(func[1])))
-
-    return func_pool

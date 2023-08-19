@@ -26,6 +26,7 @@ def prepare_desired_pos(df, lag, multiplier):
         df["desired_pos_rolling"] > 0, "long hold", "short hold"
     )
     df.drop(columns=[f"{lag}m_ret"], inplace=True)
+    print("Desired position generated")
 
     return df
 

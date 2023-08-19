@@ -1,7 +1,51 @@
+from sklearn.preprocessing import StandardScaler
+from pandas_ta import log_return
 import pandas as pd
 import numpy as np
 import talib
 import warnings
+from useful_tools import keep_essentials
+
+
+def prepare_desired_pos(df, lag, multiplier):
+    print('Generating desired position...')
+    df = df.copy()
+    scaler = StandardScaler()
+    df[f"{lag}m_ret"] = scaler.fit_transform(
+        log_return(df.close, length=lag, offset=-lag).values.reshape(-1, 1)
+    )
+    df.dropna(inplace=True)
+    df["desired_pos_change"] = (df[f"{lag}m_ret"] * multiplier).apply(int)
+    df["desired_pos_rolling"] = (
+        df["desired_pos_change"].rolling(lag, min_periods=1).sum().apply(int)
+    )
+    df['desired_pos_change'] = df['desired_pos_change'] - df[
+        'desired_pos_change'].shift(lag).fillna(0)
+    df["pos_change_signal"] = pd.qcut(
+        df["desired_pos_change"], 5,
+        ["strong sell", "sell", "meh", "buy", "strong buy"]
+    )
+    df["net_pos_signal"] = np.where(
+        df["desired_pos_rolling"] > 0, "long hold", "short hold"
+    )
+    df.drop(columns=[f"{lag}m_ret"], inplace=True)
+    print("Desired position generated")
+
+    return df
+
+
+def rle(df, plot=False):
+    """Run length encoding"""
+    mask = df["pos_change_signal"].ne(df["pos_change_signal"].shift())
+    groups = mask.cumsum()
+    rle_result = df.groupby(groups)["pos_change_signal"].agg([
+        ("value", "first"), ("count", "size")
+    ])
+    if plot:
+        rle_result.groupby("value").mean().plot(
+            kind="bar", title="Average count of consecutive same values"
+        )
+    return rle_result
 
 
 def generate_og_features_df(df: pd.DataFrame, lags: list):
@@ -347,6 +391,7 @@ def generate_time_features(df: pd.DataFrame):
 
 
 def generate_all_features_df(df: pd.DataFrame, lags: list):
+
     warnings.filterwarnings("ignore")
     generate_og_features_df(df, lags)
     generate_mom_features_df(df, lags)
@@ -359,3 +404,38 @@ def generate_all_features_df(df: pd.DataFrame, lags: list):
     df = df.reindex(sorted(df.columns), axis=1)
     print("All features generated")
     return df
+
+
+def drop_ohlcv_cols(df: pd.DataFrame):
+    """drop ohlcv columns"""
+    return df.drop(
+        columns=["open", "high", "low", "close", "volume", "open_interest"],
+        axis=1
+    )
+
+
+def split_features_target(df: pd.DataFrame):
+    """split features and target"""
+    print("Splitting features/target")
+    X = df.drop([
+        'pos_change_signal', 'net_pos_signal', 'desired_pos_change',
+        'desired_pos_rolling'
+    ],
+                axis=1)
+    y = df[[
+        'pos_change_signal', 'net_pos_signal', 'desired_pos_change',
+        'desired_pos_rolling'
+    ]]
+    print('Features/target split complete')
+
+    return X, y
+
+
+def prep_data(df: pd.DataFrame, lags: list, lag: int, multiplier: int):
+    """prep data for training"""
+    df = keep_essentials(df)
+    df = prepare_desired_pos(df, lag, multiplier)
+    df = generate_all_features_df(df, lags)
+    df = drop_ohlcv_cols(df)
+    X, y = split_features_target(df)
+    return X, y
