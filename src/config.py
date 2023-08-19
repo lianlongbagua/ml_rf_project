@@ -20,7 +20,8 @@ PARAM_GRID_TREE = {
     "max_depth": [None, 5, 10, 20],
     "min_samples_split": [i for i in range(100, 2000, 100)],
     "min_samples_leaf": [i for i in range(100, 2000, 100)],
-    "max_features": ["sqrt", "log2", None],
+    "warm_start": [True],
+    "n_estimators": [i for i in range(100, 2000, 200)],
 }
 
 GENETIC_PARAM_GRID_TREE = {

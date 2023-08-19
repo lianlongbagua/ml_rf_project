@@ -4,7 +4,7 @@ import pandas as pd
 import numpy as np
 
 
-def prepare_desired_pos(df, lag=50, multiplier=10):
+def prepare_desired_pos(df, lag, multiplier):
     print('Generating desired position...')
     df = df.copy()
     scaler = StandardScaler()
@@ -13,11 +13,14 @@ def prepare_desired_pos(df, lag=50, multiplier=10):
     )
     df.dropna(inplace=True)
     df["desired_pos_change"] = (df[f"{lag}m_ret"] * multiplier).apply(int)
-    df["pos_change_signal"] = pd.qcut(
-        df["desired_pos_change"], 5, ["strong sell", "sell", "meh", "buy", "strong buy"]
-    )
     df["desired_pos_rolling"] = (
         df["desired_pos_change"].rolling(lag, min_periods=1).sum().apply(int)
+    )
+    df['desired_pos_change'] = df['desired_pos_change'] - df[
+        'desired_pos_change'].shift(lag).fillna(0)
+    df["pos_change_signal"] = pd.qcut(
+        df["desired_pos_change"], 5,
+        ["strong sell", "sell", "meh", "buy", "strong buy"]
     )
     df["net_pos_signal"] = np.where(
         df["desired_pos_rolling"] > 0, "long hold", "short hold"
@@ -31,9 +34,9 @@ def rle(df, plot=False):
     """Run length encoding"""
     mask = df["pos_change_signal"].ne(df["pos_change_signal"].shift())
     groups = mask.cumsum()
-    rle_result = df.groupby(groups)["pos_change_signal"].agg(
-        [("value", "first"), ("count", "size")]
-    )
+    rle_result = df.groupby(groups)["pos_change_signal"].agg([
+        ("value", "first"), ("count", "size")
+    ])
     if plot:
         rle_result.groupby("value").mean().plot(
             kind="bar", title="Average count of consecutive same values"
@@ -50,12 +53,15 @@ def get_desired_pos(df, lag=50, multiplier=10):
     df.dropna(inplace=True)
     desired_pos_change = (df[f"{lag}m_ret"] * multiplier).apply(int)
     desired_pos_change_signal = pd.qcut(
-        df["desired_pos_change"], 5, ["strong sell", "sell", "meh", "buy", "strong buy"]
+        df["desired_pos_change"], 5,
+        ["strong sell", "sell", "meh", "buy", "strong buy"]
     )
     desired_pos_rolling = (
         df["desired_pos_change"].rolling(lag, min_periods=1).sum().apply(int)
     )
-    net_pos_signal = np.where(df["desired_pos_rolling"] > 0, "long hold", "short hold")
+    net_pos_signal = np.where(
+        df["desired_pos_rolling"] > 0, "long hold", "short hold"
+    )
     df.drop(columns=[f"{lag}m_ret"], inplace=True)
 
     return (
