@@ -4,7 +4,30 @@ import pandas as pd
 import numpy as np
 import talib
 import warnings
-from useful_tools import keep_essentials
+
+
+def renaming(df: pd.DataFrame):
+    """rename columns"""
+    df.rename(
+        columns={
+            "close_price": "close",
+            "high_price": "high",
+            "low_price": "low",
+            "open_price": "open",
+        },
+        inplace=True,
+    )
+    return df
+
+
+def keep_essentials(df: pd.DataFrame):
+    """Keep only OHLCVT"""
+    df.drop(
+        columns=["exchange", "turnover", "symbol"],
+        axis=1,
+        inplace=True,
+    )
+    return renaming(df)
 
 
 def prepare_desired_pos(df, lag, multiplier):

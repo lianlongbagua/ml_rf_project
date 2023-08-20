@@ -16,6 +16,9 @@ TRAINING_DATA = "../data/data.csv"
 
 LAGS = [i for i in range(7, 150, 10)]
 
+FUTURE_PRED = 10
+MULTIPLIER_FOR_DESIRED_POS = 10
+
 PARAM_GRID_TREE = {
     "max_depth": [None, 5, 10, 20],
     "min_samples_split": [i for i in range(100, 2000, 100)],

@@ -1,11 +1,11 @@
 from targets_extraction import *
 from features_extraction import *
 from useful_tools import *
+from preprocessing import prep_data
 import config
 import argparse
 
-from sklearn.pipeline import make_pipeline
-from sklearn.preprocessing import FunctionTransformer
+from sklearn.feature_selection import RFECV
 from sklearn.ensemble import ExtraTreesClassifier
 from sklearn.feature_selection import SelectFromModel
 from sklearn.model_selection import TimeSeriesSplit
@@ -48,38 +48,28 @@ if __name__ == "__main__":
 
     training_classifier, training_regressor = config.model_combos[args.model]
 
-    df = keep_essentials(pd.read_csv(config.TRAINING_DATA))
+    df = pd.read_csv(config.TRAINING_DATA)
 
     lags = config.LAGS
-
-    multiplier_for_desired_pos = 10
-
-    preprocessing_pipeline = make_pipeline(
-        FunctionTransformer(
-            prepare_desired_pos,
-            kw_args={
-                "lag": args.lag,
-                "multiplier": args.multiplier
-            }
-        ),
-        FunctionTransformer(generate_all_features_df, kw_args={"lags": lags}),
-        FunctionTransformer(drop_ohlcv_cols),
-        FunctionTransformer(split_features_target),
-        verbose=True,
-    )
-
-    feature_selector = SelectFromModel(
-        ExtraTreesClassifier(n_estimators=100, random_state=42, n_jobs=-1),
-        threshold='median'
-    )
+    future_pred = config.FUTURE_PRED
+    multiplier_for_desired_pos = config.MULTIPLIER_FOR_DESIRED_POS
+    ts_cv = TimeSeriesSplit(n_splits=5)
 
     print("Beginning preprocessing...")
-    X, y = preprocessing_pipeline.fit_transform(df)
+    X, y = prep_data(df, lags, future_pred, multiplier_for_desired_pos)
     print("Preprocessing complete")
+
+    feature_selector = RFECV(
+        estimator=ExtraTreesClassifier(n_estimators=100),
+        step=5,
+        cv=5,
+        n_jobs=-1,
+        verbose=2,
+    )
 
     print("Beginning feature selection...")
     preselected_feats = X.shape[1]
-    X = feature_selector.fit_transform(X, y["pos_change_signal"])
+    feature_selector.fit(X, y["pos_change_signal"])
     print(
         "feature selection complete. number of dropped features",
         preselected_feats - X.shape[1]
@@ -89,8 +79,8 @@ if __name__ == "__main__":
     with open("feature_names.txt", "w") as f:
         for i, string in enumerate(feature_selector.get_feature_names_out()):
             f.write(str(i - 1) + "_" + string + ",")
-
-    ts_cv = TimeSeriesSplit(n_splits=5)
+    print("Feature names saved")
+    X = feature_selector.transform(X)
 
     params = config.PARAM_GRID_TREE
 
