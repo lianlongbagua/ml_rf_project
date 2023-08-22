@@ -44,12 +44,23 @@ def prepare_desired_pos(df, lag, multiplier):
     )
     df['desired_pos_change'] = df['desired_pos_change'] - df[
         'desired_pos_change'].shift(lag).fillna(0)
-    df["pos_change_signal"] = pd.qcut(
+    df["pos_change_signal_lv1"] = pd.qcut(
         df["desired_pos_change"], 5,
         ["strong sell", "sell", "meh", "buy", "strong buy"]
     )
+    df['pos_change_signal_lv2'] = df['pos_change_signal_lv1'].where(
+        df['pos_change_signal_lv1']==('strong buy')
+        or 
+        df['pos_change_signal_lv1']==('strong sell'),
+        'meh'
+    )
     df["net_pos_signal"] = np.where(
         df["desired_pos_rolling"] > 0, "long hold", "short hold"
+    )
+    df['pos_change_signal_lv3'] = df['pos_change_signal_lv2'].where(
+        df['pos_change_signal_lv2'] == 'meh'
+        and 
+
     )
     df.drop(columns=[f"{lag}m_ret"], inplace=True)
     print("Desired position generated")
