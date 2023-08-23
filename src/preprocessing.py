@@ -30,40 +30,29 @@ def keep_essentials(df: pd.DataFrame):
     return renaming(df)
 
 
-def prepare_desired_pos(df, lag, multiplier):
-    print('Generating desired position...')
+def prepare_target(df, future_period):
+    print('Generating targets')
     df = df.copy()
     scaler = StandardScaler()
-    df[f"{lag}m_ret"] = scaler.fit_transform(
-        log_return(df.close, length=lag, offset=-lag).values.reshape(-1, 1)
+    df[f"{future_period}m_ret"] = scaler.fit_transform(
+        log_return(df.close, length=future_period, offset=-future_period).values.reshape(-1, 1)
     )
     df.dropna(inplace=True)
-    df["desired_pos_change"] = (df[f"{lag}m_ret"] * multiplier).apply(int)
-    df["desired_pos_rolling"] = (
-        df["desired_pos_change"].rolling(lag, min_periods=1).sum().apply(int)
+    df["target_position_change"] = (df[f"{future_period}m_ret"] * 10).apply(int)
+    df['target_position_change'] = df['target_position_change'] - df['target_position_change'].shift(future_period).fillna(0)
+    df["target_total_position"] = df['target_position_change'].cumsum()
+    df["target_position_change_quartile"] = pd.cut(
+        df["target_position_change"], 5,
+        labels=["strong_sell", "meh", "meh", "meh", "strong_buy"],
+        ordered=False
     )
-    df['desired_pos_change'] = df['desired_pos_change'] - df[
-        'desired_pos_change'].shift(lag).fillna(0)
-    df["pos_change_signal_lv1"] = pd.qcut(
-        df["desired_pos_change"], 5,
-        ["strong sell", "sell", "meh", "buy", "strong buy"]
+    df["target_total_position_quartile"] = pd.cut(
+        df['target_total_position'], 7,
+        labels=['max_short_pos', 'short_hold', 'short_hold', 'no_trade', 'long_hold', 'long_hold', 'max_long_pos'],
+        ordered=False
     )
-    df['pos_change_signal_lv2'] = df['pos_change_signal_lv1'].where(
-        df['pos_change_signal_lv1']==('strong buy')
-        or 
-        df['pos_change_signal_lv1']==('strong sell'),
-        'meh'
-    )
-    df["net_pos_signal"] = np.where(
-        df["desired_pos_rolling"] > 0, "long hold", "short hold"
-    )
-    df['pos_change_signal_lv3'] = df['pos_change_signal_lv2'].where(
-        df['pos_change_signal_lv2'] == 'meh'
-        and 
-
-    )
-    df.drop(columns=[f"{lag}m_ret"], inplace=True)
-    print("Desired position generated")
+    df.drop(columns=[f"{future_period}m_ret"], inplace=True)
+    print("Targets generated")
 
     return df
 
@@ -84,65 +73,65 @@ def rle(df, plot=False):
 
 def generate_og_features_df(df: pd.DataFrame, lags: list):
     print("Generating original features...")
-    for lag in lags:
-        df["ADOSC_" + str(lag)] = talib.ADOSC(
-            df["high"], df["low"], df["close"], df["volume"], lag, lag * 3
+    for future_period in lags:
+        df["ADOSC_" + str(future_period)] = talib.ADOSC(
+            df["high"], df["low"], df["close"], df["volume"], future_period, future_period * 3
         )
-        df["MFI_" + str(lag)] = talib.MFI(
-            df["high"], df["low"], df["close"], df["volume"], lag
+        df["MFI_" + str(future_period)] = talib.MFI(
+            df["high"], df["low"], df["close"], df["volume"], future_period
         )
 
 
 def generate_mom_features_df(df: pd.DataFrame, lags: list):
     print("Generating momentum features...")
-    for lag in lags:
-        df["ROC_" + str(lag)] = talib.ROC(df["close"], lag)
-        df["MOM_" + str(lag)] = talib.MOM(df["close"], lag)
-        df["PLUS_DM_" + str(lag)] = talib.PLUS_DM(df["high"], df["low"], lag)
-        df["MINUS_DM_" + str(lag)] = talib.MINUS_DM(df["high"], df["low"], lag)
+    for future_period in lags:
+        df["ROC_" + str(future_period)] = talib.ROC(df["close"], future_period)
+        df["MOM_" + str(future_period)] = talib.MOM(df["close"], future_period)
+        df["PLUS_DM_" + str(future_period)] = talib.PLUS_DM(df["high"], df["low"], future_period)
+        df["MINUS_DM_" + str(future_period)] = talib.MINUS_DM(df["high"], df["low"], future_period)
         df["ADX_" +
-           str(lag)] = talib.ADX(df["high"], df["low"], df["close"], lag)
+           str(future_period)] = talib.ADX(df["high"], df["low"], df["close"], future_period)
         df["ADXR_" +
-           str(lag)] = talib.ADXR(df["high"], df["low"], df["close"], lag)
-        df["APO_" + str(lag)] = talib.APO(df["close"], lag, lag * 2)
-        df["AROONOSC_" + str(lag)] = talib.AROONOSC(df["high"], df["low"], lag)
+           str(future_period)] = talib.ADXR(df["high"], df["low"], df["close"], future_period)
+        df["APO_" + str(future_period)] = talib.APO(df["close"], future_period, future_period * 2)
+        df["AROONOSC_" + str(future_period)] = talib.AROONOSC(df["high"], df["low"], future_period)
 
         df["CCI_" +
-           str(lag)] = talib.CCI(df["high"], df["low"], df["close"], lag)
-        df["CMO_" + str(lag)] = talib.CMO(df["close"], lag)
+           str(future_period)] = talib.CCI(df["high"], df["low"], df["close"], future_period)
+        df["CMO_" + str(future_period)] = talib.CMO(df["close"], future_period)
         df["DX_" +
-           str(lag)] = talib.DX(df["high"], df["low"], df["close"], lag)
-        df["STOCH_" + str(lag) + "slowk"], _ = talib.STOCH(
+           str(future_period)] = talib.DX(df["high"], df["low"], df["close"], future_period)
+        df["STOCH_" + str(future_period) + "slowk"], _ = talib.STOCH(
             df["high"],
             df["low"],
             df["close"],
-            fastk_period=lag,
-            slowk_period=int(lag / 2),
+            fastk_period=future_period,
+            slowk_period=int(future_period / 2),
             slowk_matype=0,
-            slowd_period=int(lag / 2),
+            slowd_period=int(future_period / 2),
             slowd_matype=0,
         )
-        df["STOCHF_" + str(lag) + "fastk"], _ = talib.STOCHF(
-            df["high"], df["low"], df["close"], lag, int(lag / 2), 0
+        df["STOCHF_" + str(future_period) + "fastk"], _ = talib.STOCHF(
+            df["high"], df["low"], df["close"], future_period, int(future_period / 2), 0
         )
-        (_, df["MACDSIGNAL_" + str(lag)],
-         _) = talib.MACD(df["close"], lag, lag * 2, int(lag / 2))
-        _, df["MACDSIGNALFIX_" + str(lag)], _ = talib.MACDFIX(df["close"], lag)
-        df["PPO_" + str(lag)] = talib.PPO(df["close"], lag, lag * 2)
-        df["RSI_" + str(lag)] = talib.RSI(df["close"], lag)
-        df["ULTOSC_" + str(lag)] = talib.ULTOSC(
-            df["high"], df["low"], df["close"], lag, lag * 2, lag * 3
+        (_, df["MACDSIGNAL_" + str(future_period)],
+         _) = talib.MACD(df["close"], future_period, future_period * 2, int(future_period / 2))
+        _, df["MACDSIGNALFIX_" + str(future_period)], _ = talib.MACDFIX(df["close"], future_period)
+        df["PPO_" + str(future_period)] = talib.PPO(df["close"], future_period, future_period * 2)
+        df["RSI_" + str(future_period)] = talib.RSI(df["close"], future_period)
+        df["ULTOSC_" + str(future_period)] = talib.ULTOSC(
+            df["high"], df["low"], df["close"], future_period, future_period * 2, future_period * 3
         )
         df["WILLR_" +
-           str(lag)] = talib.WILLR(df["high"], df["low"], df["close"], lag)
-        df["STOCHRSI_" + str(lag) +
-           "k"], _ = talib.STOCHRSI(df["close"], lag, 3, 3)
+           str(future_period)] = talib.WILLR(df["high"], df["low"], df["close"], future_period)
+        df["STOCHRSI_" + str(future_period) +
+           "k"], _ = talib.STOCHRSI(df["close"], future_period, 3, 3)
         df["NATR_" +
-           str(lag)] = talib.NATR(df["high"], df["low"], df["close"], lag)
+           str(future_period)] = talib.NATR(df["high"], df["low"], df["close"], future_period)
         df["ATR_" +
-           str(lag)] = talib.ATR(df["high"], df["low"], df["close"], lag)
+           str(future_period)] = talib.ATR(df["high"], df["low"], df["close"], future_period)
         df["TRANGE_" +
-           str(lag)] = talib.TRANGE(df["high"], df["low"], df["close"])
+           str(future_period)] = talib.TRANGE(df["high"], df["low"], df["close"])
 
     df["HT_TRENDLINE"] = talib.HT_TRENDLINE(df["close"])
     df["HT_TRENDMODE"] = talib.HT_TRENDMODE(df["close"])
@@ -154,19 +143,19 @@ def generate_mom_features_df(df: pd.DataFrame, lags: list):
 
 def generate_math_features_df(df: pd.DataFrame, lags: list):
     print("Generating math features...")
-    for lag in lags:
-        df["BETA_" + str(lag)] = talib.BETA(df["high"], df["low"], lag)
-        df["CORREL_" + str(lag)] = talib.CORREL(df["high"], df["low"], lag)
-        df["LINEARREG_" + str(lag)] = talib.LINEARREG(df["close"], lag)
+    for future_period in lags:
+        df["BETA_" + str(future_period)] = talib.BETA(df["high"], df["low"], future_period)
+        df["CORREL_" + str(future_period)] = talib.CORREL(df["high"], df["low"], future_period)
+        df["LINEARREG_" + str(future_period)] = talib.LINEARREG(df["close"], future_period)
         df["LINEARREG_ANGLE_" +
-           str(lag)] = talib.LINEARREG_ANGLE(df["close"], lag)
+           str(future_period)] = talib.LINEARREG_ANGLE(df["close"], future_period)
         df["LINEARREG_INTERCEPT_" +
-           str(lag)] = talib.LINEARREG_INTERCEPT(df["close"], lag)
+           str(future_period)] = talib.LINEARREG_INTERCEPT(df["close"], future_period)
         df["LINEARREG_SLOPE_" +
-           str(lag)] = talib.LINEARREG_SLOPE(df["close"], lag)
-        df["STDDEV_" + str(lag)] = talib.STDDEV(df["close"], lag)
-        df["TSF_" + str(lag)] = talib.TSF(df["close"], lag)
-        df["VAR_" + str(lag)] = talib.VAR(df["close"], lag)
+           str(future_period)] = talib.LINEARREG_SLOPE(df["close"], future_period)
+        df["STDDEV_" + str(future_period)] = talib.STDDEV(df["close"], future_period)
+        df["TSF_" + str(future_period)] = talib.TSF(df["close"], future_period)
+        df["VAR_" + str(future_period)] = talib.VAR(df["close"], future_period)
 
 
 def generate_pattern_features_df(df: pd.DataFrame):
@@ -430,7 +419,7 @@ def generate_all_features_df(df: pd.DataFrame, lags: list):
     generate_og_features_df(df, lags)
     generate_mom_features_df(df, lags)
     generate_math_features_df(df, lags)
-    generate_pattern_features_df(df)
+    # generate_pattern_features_df(df)
     generate_time_features(df)
     df.dropna(inplace=True)
 
@@ -450,25 +439,15 @@ def drop_ohlcv_cols(df: pd.DataFrame):
 
 def split_features_target(df: pd.DataFrame):
     """split features and target"""
-    print("Splitting features/target")
-    X = df.drop([
-        'pos_change_signal', 'net_pos_signal', 'desired_pos_change',
-        'desired_pos_rolling'
-    ],
-                axis=1)
-    y = df[[
-        'pos_change_signal', 'net_pos_signal', 'desired_pos_change',
-        'desired_pos_rolling'
-    ]]
-    print('Features/target split complete')
+    target_cols = df.columns.str.contains(r'target')
 
-    return X, y
+    return df.loc[:, ~target_cols], df.loc[:, target_cols]
 
 
-def prep_data(df: pd.DataFrame, lags: list, lag: int, multiplier: int):
+def prep_data(df: pd.DataFrame, lags: list, future_period: int, multiplier: int):
     """prep data for training"""
     df = keep_essentials(df)
-    df = prepare_desired_pos(df, lag, multiplier)
+    df = prepare_desired_pos(df, future_period, multiplier)
     df = generate_all_features_df(df, lags)
     df = drop_ohlcv_cols(df)
     X, y = split_features_target(df)
