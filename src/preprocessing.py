@@ -1,5 +1,9 @@
-from sklearn.preprocessing import StandardScaler
+from datetime import datetime
+
+from sklearn.preprocessing import robust_scale
 from pandas_ta import log_return
+import statsmodels.api as sm
+from tuneta.tune_ta import TuneTA
 import pandas as pd
 import numpy as np
 import talib
@@ -30,28 +34,139 @@ def keep_essentials(df: pd.DataFrame):
     return renaming(df)
 
 
+class Preprocessor:
+
+    def __init__(self, df: pd.DataFrame, future_period: int):
+        self.df = df
+        self.future_period = future_period
+        self.X = pd.DataFrame()
+        self.y = pd.DataFrame()
+
+    def prepare_target(self):
+        print('Generating targets')
+        self.df[f"target_{self.future_period}m_ret"] = log_return(
+            self.df.close,
+            length=self.future_period,
+            offset=-self.future_period
+        )
+        self.df.dropna(inplace=True)
+        self.X = self.df.drop(columns=[f"target_{self.future_period}m_ret"])
+        self.y = self.df[f"target_{self.future_period}m_ret"]
+
+    def generate_features(self):
+        print("Generating features...")
+
+        print("Generating TA features...")
+        tuner = TuneTA(n_jobs=4, verbose=True)
+        tuner.fit(
+            self.X,
+            self.y,
+            indicators=[
+                'tta.RSI', 'tta.ATR', 'tta.ADX', 'tta.LINEARREG_SLOPE',
+                'tta.MOM'
+            ],
+            ranges=[(4, 10), (10, 20), (20, 30), (30, 40), (40, 50), (50, 100),
+                    (100, 200), (200, 300)],
+            trials=300,
+            early_stop=50,
+        )
+        tuner.prune(max_inter_correlation=0.95)
+        features = tuner.transform(self.X)
+        print(f"Features selected are {features.columns.tolist()}")
+        self.X = pd.concat([self.X, features], axis=1)
+
+        print("Calculating ACF...")
+        acf_arr = np.argsort(
+            np.abs(
+                sm.tsa.stattools.acf(
+                    robust_scale(self.y)[::self.future_period], missing='drop'
+                )
+            )
+        )[::-1][1:6]
+        print("ACF calculated, top 5 lags are: ", acf_arr)
+        for i in acf_arr:
+            self.X[f'lagged_target_{i*self.future_period}'] = log_return(
+                self.X.close, length=i * self.future_period
+            )
+
+        self.X.dropna(inplace=True)
+        self.y = self.y.loc[self.X.index]
+        print("Features generated")
+
+    def generate_cossin_time_features(self):
+        print("Generating cossin time features...")
+
+        self.X['time_hour_sin'] = talib.SIN(
+            (self.X.index.hour / 24 * 2 * np.pi).to_numpy()
+        )
+        self.X['time_hour_cos'] = talib.COS(
+            (self.X.index.hour / 24 * 2 * np.pi).to_numpy()
+        )
+
+        self.X['time_minute_sin'] = talib.SIN(
+            (self.X.index.minute / 60 * 2 * np.pi).to_numpy()
+        )
+        self.X['time_minute_cos'] = talib.COS(
+            (self.X.index.minute / 60 * 2 * np.pi).to_numpy()
+        )
+
+        self.X['time_day_of_week_sin'] = talib.SIN(
+            (self.X.index.dayofweek / 7 * 2 * np.pi).to_numpy()
+        )
+        self.X['time_day_of_week_cos'] = talib.COS(
+            (self.X.index.dayofweek / 7 * 2 * np.pi).to_numpy()
+        )
+
+        self.X['time_day_of_month_sin'] = talib.SIN(
+            (self.X.index.day / 30 * 2 * np.pi).to_numpy()
+        )
+        self.X['time_day_of_month_cos'] = talib.COS(
+            (self.X.index.day / 30 * 2 * np.pi).to_numpy()
+        )
+
+        print("Cossin time features generated")
+
+    def prep(self):
+        self.prepare_target()
+        self.generate_features()
+        self.generate_cossin_time_feaures()
+        self.X.drop(
+            columns=['open', 'high', 'low', 'close', 'volume'], inplace=True
+        )
+        return self.X, self.y
+
+    def save(self):
+        self.X.to_hdf(f'{datetime.now().date()}.h5', key='X')
+        self.y.to_hdf(f'{datetime.now().date()}.h5', key='y')
+
+
 def prepare_target(df, future_period):
     print('Generating targets')
-    df = df.copy()
-    scaler = StandardScaler()
-    df[f"{future_period}m_ret"] = scaler.fit_transform(
-        log_return(df.close, length=future_period, offset=-future_period).values.reshape(-1, 1)
+    df[f"target_{future_period}m_ret"] = log_return(
+        df.close, length=future_period, offset=-future_period
     )
     df.dropna(inplace=True)
-    df["target_position_change"] = (df[f"{future_period}m_ret"] * 10).apply(int)
-    df['target_position_change'] = df['target_position_change'] - df['target_position_change'].shift(future_period).fillna(0)
-    df["target_total_position"] = df['target_position_change'].cumsum()
-    df["target_position_change_quartile"] = pd.cut(
-        df["target_position_change"], 5,
-        labels=["strong_sell", "meh", "meh", "meh", "strong_buy"],
-        ordered=False
-    )
-    df["target_total_position_quartile"] = pd.cut(
-        df['target_total_position'], 7,
-        labels=['max_short_pos', 'short_hold', 'short_hold', 'no_trade', 'long_hold', 'long_hold', 'max_long_pos'],
-        ordered=False
-    )
-    df.drop(columns=[f"{future_period}m_ret"], inplace=True)
+    # df["target_position_change"] = (df[f"{future_period}m_ret"] *
+    #                                 100).round().astype(int)
+    # df['target_position_change'] = df['target_position_change'] - df[
+    #     'target_position_change'].shift(future_period).fillna(0)
+    # df["target_total_position"] = df['target_position_change'].cumsum()
+    # df["target_position_change_quartile"] = pd.cut(
+    #     df["target_position_change"],
+    #     5,
+    #     labels=["strong_sell", "meh", "meh", "meh", "strong_buy"],
+    #     ordered=False
+    # )
+    # df["target_total_position_quartile"] = pd.cut(
+    #     df['target_total_position'],
+    #     7,
+    #     labels=[
+    #         'max_short_pos', 'short_hold', 'short_hold', 'no_trade',
+    #         'long_hold', 'long_hold', 'max_long_pos'
+    #     ],
+    #     ordered=False
+    # )
+    # df.drop(columns=[f"{future_period}m_ret"], inplace=True)
     print("Targets generated")
 
     return df
@@ -71,11 +186,47 @@ def rle(df, plot=False):
     return rle_result
 
 
+def generate_features(df, period):
+    print("Generating simple features...")
+    target = df.loc[:, df.columns.str.contains(r'target')]
+    print("Calculating ACF...")
+    acf_arr = np.argsort(
+        np.abs(
+            sm.tsa.stattools.acf(
+                robust_scale(target)[::period], missing='drop'
+            )
+        )
+    )[::-1][1:6]
+    print("ACF calculated, top 5 lags are: ", acf_arr)
+    for i in acf_arr:
+        df[f'lagged_target_{i*period}'] = log_return(
+            df.close, length=i * period
+        )
+    print("Simple features generated")
+    df.dropna(inplace=True)
+    print("Generating TA features...")
+    tuner = TuneTA(n_jobs=10)
+    tuner.fit(
+        df,
+        df.loc[:, df.columns.str.contains(r'target')],
+        indicators=['tta.RSI', 'tta.ATR', 'tta.ADX', 'tta.LINEARREG_SLOPE'],
+        ranges=[(4, 10), (10, 20), (20, 30), (30, 40), (40, 50), (50, 60),
+                (60, 70), (70, 80), (80, 90), (90, 100)],
+        trials=300,
+        early_stop=50
+    )
+    tuner.prune(max_inter_correlation=0.92)
+    features = tuner.transform(df)
+    print("TA features generated")
+    df.dropna(inplace=True)
+
+
 def generate_og_features_df(df: pd.DataFrame, lags: list):
     print("Generating original features...")
     for future_period in lags:
         df["ADOSC_" + str(future_period)] = talib.ADOSC(
-            df["high"], df["low"], df["close"], df["volume"], future_period, future_period * 3
+            df["high"], df["low"], df["close"], df["volume"], future_period,
+            future_period * 3
         )
         df["MFI_" + str(future_period)] = talib.MFI(
             df["high"], df["low"], df["close"], df["volume"], future_period
@@ -87,20 +238,32 @@ def generate_mom_features_df(df: pd.DataFrame, lags: list):
     for future_period in lags:
         df["ROC_" + str(future_period)] = talib.ROC(df["close"], future_period)
         df["MOM_" + str(future_period)] = talib.MOM(df["close"], future_period)
-        df["PLUS_DM_" + str(future_period)] = talib.PLUS_DM(df["high"], df["low"], future_period)
-        df["MINUS_DM_" + str(future_period)] = talib.MINUS_DM(df["high"], df["low"], future_period)
-        df["ADX_" +
-           str(future_period)] = talib.ADX(df["high"], df["low"], df["close"], future_period)
-        df["ADXR_" +
-           str(future_period)] = talib.ADXR(df["high"], df["low"], df["close"], future_period)
-        df["APO_" + str(future_period)] = talib.APO(df["close"], future_period, future_period * 2)
-        df["AROONOSC_" + str(future_period)] = talib.AROONOSC(df["high"], df["low"], future_period)
+        df["PLUS_DM_" + str(future_period)] = talib.PLUS_DM(
+            df["high"], df["low"], future_period
+        )
+        df["MINUS_DM_" + str(future_period)] = talib.MINUS_DM(
+            df["high"], df["low"], future_period
+        )
+        df["ADX_" + str(future_period)] = talib.ADX(
+            df["high"], df["low"], df["close"], future_period
+        )
+        df["ADXR_" + str(future_period)] = talib.ADXR(
+            df["high"], df["low"], df["close"], future_period
+        )
+        df["APO_" + str(future_period)] = talib.APO(
+            df["close"], future_period, future_period * 2
+        )
+        df["AROONOSC_" + str(future_period)] = talib.AROONOSC(
+            df["high"], df["low"], future_period
+        )
 
-        df["CCI_" +
-           str(future_period)] = talib.CCI(df["high"], df["low"], df["close"], future_period)
+        df["CCI_" + str(future_period)] = talib.CCI(
+            df["high"], df["low"], df["close"], future_period
+        )
         df["CMO_" + str(future_period)] = talib.CMO(df["close"], future_period)
-        df["DX_" +
-           str(future_period)] = talib.DX(df["high"], df["low"], df["close"], future_period)
+        df["DX_" + str(future_period)] = talib.DX(
+            df["high"], df["low"], df["close"], future_period
+        )
         df["STOCH_" + str(future_period) + "slowk"], _ = talib.STOCH(
             df["high"],
             df["low"],
@@ -112,26 +275,38 @@ def generate_mom_features_df(df: pd.DataFrame, lags: list):
             slowd_matype=0,
         )
         df["STOCHF_" + str(future_period) + "fastk"], _ = talib.STOCHF(
-            df["high"], df["low"], df["close"], future_period, int(future_period / 2), 0
+            df["high"], df["low"], df["close"], future_period,
+            int(future_period / 2), 0
         )
-        (_, df["MACDSIGNAL_" + str(future_period)],
-         _) = talib.MACD(df["close"], future_period, future_period * 2, int(future_period / 2))
-        _, df["MACDSIGNALFIX_" + str(future_period)], _ = talib.MACDFIX(df["close"], future_period)
-        df["PPO_" + str(future_period)] = talib.PPO(df["close"], future_period, future_period * 2)
+        (_, df["MACDSIGNAL_" + str(future_period)], _) = talib.MACD(
+            df["close"], future_period, future_period * 2,
+            int(future_period / 2)
+        )
+        _, df["MACDSIGNALFIX_" + str(future_period)], _ = talib.MACDFIX(
+            df["close"], future_period
+        )
+        df["PPO_" + str(future_period)] = talib.PPO(
+            df["close"], future_period, future_period * 2
+        )
         df["RSI_" + str(future_period)] = talib.RSI(df["close"], future_period)
         df["ULTOSC_" + str(future_period)] = talib.ULTOSC(
-            df["high"], df["low"], df["close"], future_period, future_period * 2, future_period * 3
+            df["high"], df["low"], df["close"], future_period,
+            future_period * 2, future_period * 3
         )
-        df["WILLR_" +
-           str(future_period)] = talib.WILLR(df["high"], df["low"], df["close"], future_period)
+        df["WILLR_" + str(future_period)] = talib.WILLR(
+            df["high"], df["low"], df["close"], future_period
+        )
         df["STOCHRSI_" + str(future_period) +
            "k"], _ = talib.STOCHRSI(df["close"], future_period, 3, 3)
-        df["NATR_" +
-           str(future_period)] = talib.NATR(df["high"], df["low"], df["close"], future_period)
-        df["ATR_" +
-           str(future_period)] = talib.ATR(df["high"], df["low"], df["close"], future_period)
-        df["TRANGE_" +
-           str(future_period)] = talib.TRANGE(df["high"], df["low"], df["close"])
+        df["NATR_" + str(future_period)] = talib.NATR(
+            df["high"], df["low"], df["close"], future_period
+        )
+        df["ATR_" + str(future_period)] = talib.ATR(
+            df["high"], df["low"], df["close"], future_period
+        )
+        df["TRANGE_" + str(future_period)] = talib.TRANGE(
+            df["high"], df["low"], df["close"]
+        )
 
     df["HT_TRENDLINE"] = talib.HT_TRENDLINE(df["close"])
     df["HT_TRENDMODE"] = talib.HT_TRENDMODE(df["close"])
@@ -144,16 +319,24 @@ def generate_mom_features_df(df: pd.DataFrame, lags: list):
 def generate_math_features_df(df: pd.DataFrame, lags: list):
     print("Generating math features...")
     for future_period in lags:
-        df["BETA_" + str(future_period)] = talib.BETA(df["high"], df["low"], future_period)
-        df["CORREL_" + str(future_period)] = talib.CORREL(df["high"], df["low"], future_period)
-        df["LINEARREG_" + str(future_period)] = talib.LINEARREG(df["close"], future_period)
-        df["LINEARREG_ANGLE_" +
-           str(future_period)] = talib.LINEARREG_ANGLE(df["close"], future_period)
-        df["LINEARREG_INTERCEPT_" +
-           str(future_period)] = talib.LINEARREG_INTERCEPT(df["close"], future_period)
-        df["LINEARREG_SLOPE_" +
-           str(future_period)] = talib.LINEARREG_SLOPE(df["close"], future_period)
-        df["STDDEV_" + str(future_period)] = talib.STDDEV(df["close"], future_period)
+        df["BETA_" + str(future_period)] = talib.BETA(
+            df["high"], df["low"], future_period
+        )
+        df["CORREL_" + str(future_period)] = talib.CORREL(
+            df["high"], df["low"], future_period
+        )
+        df["LINEARREG_" +
+           str(future_period)] = talib.LINEARREG(df["close"], future_period)
+        df["LINEARREG_ANGLE_" + str(future_period)] = talib.LINEARREG_ANGLE(
+            df["close"], future_period
+        )
+        df["LINEARREG_INTERCEPT_" + str(future_period)
+           ] = talib.LINEARREG_INTERCEPT(df["close"], future_period)
+        df["LINEARREG_SLOPE_" + str(future_period)] = talib.LINEARREG_SLOPE(
+            df["close"], future_period
+        )
+        df["STDDEV_" +
+           str(future_period)] = talib.STDDEV(df["close"], future_period)
         df["TSF_" + str(future_period)] = talib.TSF(df["close"], future_period)
         df["VAR_" + str(future_period)] = talib.VAR(df["close"], future_period)
 
@@ -405,12 +588,11 @@ def generate_pattern_features_df(df: pd.DataFrame):
 
 def generate_time_features(df: pd.DataFrame):
     print("Generating time features...")
-    df["datetime"] = pd.to_datetime(df["datetime"])
-    df["time_hour"] = df["datetime"].dt.hour
-    df["time_minute"] = df["datetime"].dt.minute
-    df["time_day_of_week"] = df["datetime"].dt.dayofweek
-    df["time_day_of_month"] = df["datetime"].dt.day
-    df.drop(columns=["datetime"], inplace=True)
+    df.index = pd.to_datetime(df.index)
+    df["time_hour"] = df.index.dt.hour
+    df["time_minute"] = df.index.dt.minute
+    df["time_day_of_week"] = df.index.dt.dayofweek
+    df["time_day_of_month"] = df.index.dt.day
 
 
 def generate_all_features_df(df: pd.DataFrame, lags: list):
@@ -444,10 +626,11 @@ def split_features_target(df: pd.DataFrame):
     return df.loc[:, ~target_cols], df.loc[:, target_cols]
 
 
-def prep_data(df: pd.DataFrame, lags: list, future_period: int, multiplier: int):
+def prep_data(
+    df: pd.DataFrame, lags: list, future_period: int, multiplier: int
+):
     """prep data for training"""
     df = keep_essentials(df)
-    df = prepare_desired_pos(df, future_period, multiplier)
     df = generate_all_features_df(df, lags)
     df = drop_ohlcv_cols(df)
     X, y = split_features_target(df)
