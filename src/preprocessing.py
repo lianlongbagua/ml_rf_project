@@ -86,7 +86,7 @@ class Preprocessor:
         print("ACF calculated, top 5 lags are: ", acf_arr)
         for i in acf_arr:
             self.X[f'lagged_target_{i*self.future_period}'] = log_return(
-                self.X.close, length=i * self.future_period
+                self.X.close, length=self.future_period, offset=i * self.future_period
             )
 
         self.X.dropna(inplace=True)

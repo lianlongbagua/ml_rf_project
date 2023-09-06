@@ -11,7 +11,7 @@ import joblib
 
 
 class RfStrategy(EliteCtaTemplate):
-    """RandomForest策略"""
+    """提升树策略"""
 
     author = "czl"
 
