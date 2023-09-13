@@ -65,7 +65,9 @@ class Preprocessor:
         print("ACF calculated, top 5 lags are: ", acf_arr)
         for i in acf_arr:
             self.X[f'lagged_target_{i*self.future_period}'] = log_return(
-                self.X.close, length=self.future_period, offset=i * self.future_period
+                self.X.close,
+                length=self.future_period,
+                offset=i * self.future_period
             )
 
         self.X.dropna(inplace=True)
@@ -108,7 +110,7 @@ class Preprocessor:
     def prep(self):
         self.prepare_target()
         self.generate_features()
-        self.generate_cossin_time_feaures()
+        self.generate_cossin_time_features()
         self.X.drop(
             columns=['open', 'high', 'low', 'close', 'volume'], inplace=True
         )
